@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /*
@@ -15,7 +16,7 @@ use Tests\TestCase;
 */
 
 pest()->extend(TestCase::class)
- // ->use(RefreshDatabase::class)
+    ->use(RefreshDatabase::class)
     ->in('Feature');
 
 /*
@@ -44,7 +45,40 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Fake the Userdb /areas endpoint with a default (or custom) fixture.
+ *
+ * Default fixture: area "Slatina" (single same-named AP → collapsed) and area
+ * "Brno" (two APs → group).
+ *
+ * @param  array<string, mixed>|null  $areas
+ * @return array<string, mixed>
+ */
+function fakeUserdbAreas(?array $areas = null): array
 {
-    // ..
+    $areas ??= [
+        '12' => [
+            'id' => 12,
+            'jmeno' => 'Slatina',
+            'aps' => [
+                '101' => ['id' => 101, 'jmeno' => 'Slatina', 'aktivni' => 1],
+            ],
+            'admins' => [],
+        ],
+        '13' => [
+            'id' => 13,
+            'jmeno' => 'Brno',
+            'aps' => [
+                '201' => ['id' => 201, 'jmeno' => 'Brno', 'aktivni' => 1],
+                '202' => ['id' => 202, 'jmeno' => 'Brno-Sever', 'aktivni' => 1],
+            ],
+            'admins' => [],
+        ],
+    ];
+
+    Http::fake([
+        '*userdb*' => Http::response($areas),
+    ]);
+
+    return $areas;
 }
