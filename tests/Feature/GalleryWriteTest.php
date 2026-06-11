@@ -24,6 +24,37 @@ it('lets an SO user upload multiple images and generates thumbnails', function (
     Storage::disk('public')->assertExists('gallery/13/201/thumbs/beta.png');
 });
 
+it('returns JSON when an AJAX upload succeeds', function () {
+    Storage::fake('public');
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(
+            route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]),
+            ['files' => [UploadedFile::fake()->image('alpha.jpg')]],
+            ['Accept' => 'application/json'],
+        )
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'count' => 1]);
+
+    Storage::disk('public')->assertExists('gallery/13/201/alpha.jpg');
+    Storage::disk('public')->assertExists('gallery/13/201/thumbs/alpha.jpg');
+});
+
+it('rejects oversized images with a 422 JSON error and stores nothing', function () {
+    Storage::fake('public');
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->post(
+            route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]),
+            ['files' => [UploadedFile::fake()->image('big.jpg')->size(60000)]],
+            ['Accept' => 'application/json'],
+        )
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('files.0');
+
+    Storage::disk('public')->assertMissing('gallery/13/201/big.jpg');
+});
+
 it('soft-deletes by renaming into the trash and hides it from listings', function () {
     Storage::fake('public');
     Storage::disk('public')->put('gallery/13/201/gone.jpg', 'x');

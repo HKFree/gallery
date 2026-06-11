@@ -37,7 +37,11 @@ class GalleryController extends Controller
 
         $validated = $request->validate([
             'files' => ['required', 'array'],
-            'files.*' => ['required', 'file', 'image', 'max:10240'],
+            'files.*' => ['required', 'file', 'image', 'max:51200'],
+        ], [
+            'files.*.uploaded' => 'Soubor je příliš velký nebo se ho nepodařilo nahrát.',
+            'files.*.max' => 'Soubor je příliš velký (maximálně 50 MB).',
+            'files.*.image' => 'Soubor není platný obrázek.',
         ]);
 
         foreach ($validated['files'] as $file) {

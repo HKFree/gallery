@@ -12,30 +12,79 @@ function initDropzone(zone) {
         if (status) status.textContent = text;
     };
 
-    const upload = async (fileList) => {
-        const files = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
-        if (files.length === 0) return;
-
-        const data = new FormData();
-        files.forEach((file) => data.append('files[]', file));
-
-        setStatus(`Nahrávám ${files.length} obrázků…`);
-        zone.classList.add('pointer-events-none', 'opacity-60');
+    // Pull the human-readable reason out of a failed JSON response.
+    const errorMessage = async (response) => {
+        if (response.status === 413) return 'soubor je příliš velký.';
 
         try {
-            const response = await fetch(uploadUrl, {
-                method: 'POST',
-                headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
-                body: data,
-            });
+            const body = await response.json();
+            if (body.errors) return Object.values(body.errors).flat().join(' ');
 
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return body.message || `HTTP ${response.status}`;
+        } catch {
+            return `HTTP ${response.status}`;
+        }
+    };
 
+    const upload = async (fileList) => {
+        const all = Array.from(fileList);
+        const files = all.filter((file) => file.type.startsWith('image/'));
+        const skipped = all.length - files.length;
+
+        if (files.length === 0) {
+            setStatus(skipped > 0 ? 'Vyberte prosím obrázky (JPEG, PNG, GIF, WebP).' : '');
+            return;
+        }
+
+        zone.classList.add('pointer-events-none', 'opacity-60');
+
+        let uploaded = 0;
+        const errors = [];
+
+        // Upload one file per request so a large/invalid file can't fail the whole batch
+        // (and each request stays under post_max_size).
+        for (const file of files) {
+            setStatus(`Nahrávám ${uploaded + 1}/${files.length}…`);
+
+            const data = new FormData();
+            data.append('files[]', file);
+
+            try {
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        Accept: 'application/json',
+                    },
+                    body: data,
+                    redirect: 'error',
+                });
+
+                if (!response.ok) {
+                    errors.push(`${file.name}: ${await errorMessage(response)}`);
+                    continue;
+                }
+
+                uploaded++;
+            } catch (error) {
+                errors.push(`${file.name}: nahrání se nezdařilo.`);
+            }
+        }
+
+        if (skipped > 0) {
+            errors.push(`${skipped} souborů nejsou obrázky a byly přeskočeny.`);
+        }
+
+        if (errors.length > 0) {
+            zone.classList.remove('pointer-events-none', 'opacity-60');
+            setStatus(`Nahráno ${uploaded}/${files.length}, chyb: ${errors.length}.`);
+            window.alert('Některé soubory se nepodařilo nahrát:\n\n' + errors.join('\n'));
+        }
+
+        if (uploaded > 0) {
             setStatus('Hotovo, načítám…');
             window.location.reload();
-        } catch (error) {
-            zone.classList.remove('pointer-events-none', 'opacity-60');
-            setStatus('Nahrání se nezdařilo. Zkuste to znovu.');
         }
     };
 

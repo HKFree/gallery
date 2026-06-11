@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\FileExtensionEncoder;
 use Intervention\Image\Laravel\Facades\Image;
+use RuntimeException;
 
 /**
  * Stores, lists and soft-deletes gallery images for a given AP.
@@ -94,13 +96,27 @@ class GalleryStorage
         $filename = $this->uniqueFilename($visibility, $areaId, $apId, $file->getClientOriginalName());
         $extension = Str::lower(pathinfo($filename, PATHINFO_EXTENSION)) ?: 'jpg';
 
-        $disk->putFileAs($dir, $file, $filename);
+        if ($disk->putFileAs($dir, $file, $filename) === false) {
+            Log::error('Gallery: failed to store uploaded image', [
+                'visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => $filename,
+            ]);
 
-        $thumbnail = Image::decode($file->getRealPath())
-            ->scaleDown(width: self::THUMBNAIL_WIDTH)
-            ->encode(new FileExtensionEncoder($extension, quality: 80));
+            throw new RuntimeException("Failed to store uploaded image [{$filename}].");
+        }
 
-        $disk->put("{$dir}/thumbs/{$filename}", (string) $thumbnail);
+        // A thumbnail failure must not lose the already-stored original; log and move on.
+        try {
+            $thumbnail = Image::decode($file->getRealPath())
+                ->scaleDown(width: self::THUMBNAIL_WIDTH)
+                ->encode(new FileExtensionEncoder($extension, quality: 80));
+
+            $disk->put("{$dir}/thumbs/{$filename}", (string) $thumbnail);
+        } catch (\Throwable $e) {
+            Log::error('Gallery: failed to generate thumbnail', [
+                'visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => $filename,
+                'exception' => $e->getMessage(),
+            ]);
+        }
 
         return $filename;
     }
