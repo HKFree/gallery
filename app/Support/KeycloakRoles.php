@@ -2,47 +2,44 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Facades\Log;
+use Laravel\Socialite\Contracts\User;
+
 /**
- * Extracts Keycloak realm roles from an access token.
+ * Extracts the application's business roles from the Keycloak `groups` (requested via the `groupshkfree` scope)
  *
- * Keycloak places realm roles in the access-token JWT under
- * `realm_access.roles`; they are not returned by the userinfo endpoint, so the
- * token payload must be decoded directly.
+ * `groupshkfree` is a Keycloak OAuth scope whose group-membership mapper exposes
+ * the user's groups. Scope is mapped to userinfo the claim is available
+ * directly on the Socialite user's raw payload.
+ * Group values arrive as full paths (`/SO`), so a leading slash is stripped to keep matching stable.
  */
 class KeycloakRoles
 {
+    private const CLAIM = 'groups';
+
     /**
      * @return list<string>
      */
-    public static function fromAccessToken(?string $jwt): array
+    public static function fromKeycloakUser(User $user): array
     {
-        if ($jwt === null || $jwt === '') {
-            return [];
-        }
+        $raw = $user->getRaw();
+        Log::info('Extracting Keycloak roles from user raw data', ['raw' => $raw]);
+        $groups = is_array($raw) ? ($raw[self::CLAIM] ?? []) : [];
 
-        $segments = explode('.', $jwt);
-
-        if (count($segments) < 2) {
-            return [];
-        }
-
-        $payload = json_decode(self::base64UrlDecode($segments[1]), true);
-
-        if (! is_array($payload)) {
-            return [];
-        }
-
-        $roles = $payload['realm_access']['roles'] ?? [];
-
-        if (! is_array($roles)) {
-            return [];
-        }
-
-        return array_values(array_map(strval(...), $roles));
+        return self::normalize($groups);
     }
 
-    private static function base64UrlDecode(string $data): string
+    /**
+     * @param  array<int, mixed>  $groups
+     * @return list<string>
+     */
+    private static function normalize(array $groups): array
     {
-        return (string) base64_decode(strtr($data, '-_', '+/'), true);
+        $roles = array_map(
+            fn (mixed $group): string => ltrim((string) $group, '/'),
+            $groups,
+        );
+
+        return array_values(array_unique(array_filter($roles, fn (string $role): bool => $role !== '')));
     }
 }

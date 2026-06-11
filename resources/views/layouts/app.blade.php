@@ -18,7 +18,7 @@
                 @auth
                     <span class="text-gray-600">{{ auth()->user()->name }}</span>
                     @can('manage-gallery')
-                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">SO</span>
+                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700">správce</span>
                     @endcan
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf

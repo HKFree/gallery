@@ -5,47 +5,64 @@ use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 
 /**
- * Build a minimal JWT whose payload carries the given realm roles.
+ * Fake a Keycloak Socialite user with the given groups in the userinfo payload.
  *
- * @param  list<string>  $roles
+ * Keycloak emits group paths (e.g. `/SO`) under the `groups` claim, requested
+ * via the `groupshkfree` scope.
+ *
+ * @param  list<string>  $groups
  */
-function fakeAccessToken(array $roles): string
+function fakeKeycloakUser(string $id, string $email, array $groups): SocialiteUser
 {
-    $payload = rtrim(strtr(base64_encode((string) json_encode([
-        'realm_access' => ['roles' => $roles],
-    ])), '+/', '-_'), '=');
-
-    return "header.{$payload}.signature";
+    return (new SocialiteUser)
+        ->map([
+            'id' => $id,
+            'name' => 'Test User',
+            'email' => $email,
+        ])
+        ->setRaw(['groups' => $groups]);
 }
 
-it('creates and logs in a user with the SO role from the access token', function () {
-    Socialite::fake('keycloak', (new SocialiteUser)->map([
-        'id' => 'kc-123',
-        'name' => 'Spravce Oblasti',
-        'email' => 'so@example.com',
-    ])->setToken(fakeAccessToken(['SO', 'offline_access'])));
+it('creates and logs in an admin with the SO role from the groups claim', function () {
+    $groups = ['/SO-112', '/VV', '/ZSO', '/SO', '/PMVTEAM', '/SO-12', '/ZSO-122', '/ZSO-120', '/PREDSTAVENSTVO'];
+
+    Socialite::fake('keycloak', fakeKeycloakUser('kc-admin', 'admin@example.com', $groups));
 
     $this->get(route('auth.callback'))->assertRedirect(route('home'));
 
     $this->assertDatabaseHas('users', [
-        'keycloak_id' => 'kc-123',
-        'email' => 'so@example.com',
+        'keycloak_id' => 'kc-admin',
+        'email' => 'admin@example.com',
     ]);
 
-    $user = User::firstWhere('keycloak_id', 'kc-123');
+    $user = User::firstWhere('keycloak_id', 'kc-admin');
 
+    expect($user->roles)->toBe(['SO-112', 'VV', 'ZSO', 'SO', 'PMVTEAM', 'SO-12', 'ZSO-122', 'ZSO-120', 'PREDSTAVENSTVO']);
     expect($user->hasRole('SO'))->toBeTrue();
     $this->assertAuthenticatedAs($user);
 });
 
-it('logs in a non-SO user without the manage role', function () {
-    Socialite::fake('keycloak', (new SocialiteUser)->map([
-        'id' => 'kc-999',
-        'name' => 'Bezny Uzivatel',
-        'email' => 'user@example.com',
-    ])->setToken(fakeAccessToken(['offline_access'])));
+it('logs in an ordinary user with no roles', function () {
+    Socialite::fake('keycloak', fakeKeycloakUser('kc-user', 'user@example.com', []));
 
     $this->get(route('auth.callback'))->assertRedirect(route('home'));
 
-    expect(User::firstWhere('keycloak_id', 'kc-999')->hasRole('SO'))->toBeFalse();
+    $user = User::firstWhere('keycloak_id', 'kc-user');
+
+    expect($user->roles)->toBe([]);
+    expect($user->hasRole('SO'))->toBeFalse();
+});
+
+it('stores no roles when the groups claim is absent', function () {
+    Socialite::fake('keycloak', (new SocialiteUser)
+        ->map([
+            'id' => 'kc-empty',
+            'name' => 'No Groups',
+            'email' => 'empty@example.com',
+        ])
+        ->setRaw(['sub' => 'kc-empty']));
+
+    $this->get(route('auth.callback'))->assertRedirect(route('home'));
+
+    expect(User::firstWhere('keycloak_id', 'kc-empty')->roles)->toBe([]);
 });

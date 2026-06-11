@@ -19,7 +19,7 @@ class KeycloakController extends Controller
     public function redirect(): RedirectResponse
     {
         return Socialite::driver('keycloak')
-            ->scopes(['profile', 'email', 'roles'])
+            ->scopes(['profile', 'email', 'groupshkfree'])
             ->redirect();
     }
 
@@ -39,7 +39,7 @@ class KeycloakController extends Controller
             [
                 'name' => $keycloakUser->getName() ?: $keycloakUser->getNickname() ?: $keycloakUser->getEmail(),
                 'email' => $keycloakUser->getEmail(),
-                'roles' => KeycloakRoles::fromAccessToken($keycloakUser->token),
+                'roles' => KeycloakRoles::fromKeycloakUser($keycloakUser),
             ],
         );
 
