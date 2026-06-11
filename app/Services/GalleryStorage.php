@@ -42,7 +42,7 @@ class GalleryStorage
     {
         $base = $visibility === 'priv' ? 'gallery-private' : 'gallery';
 
-        return "{$base}/{$areaId}/{$apId}";
+        return "{$base}/ap/{$areaId}/{$apId}";
     }
 
     /**

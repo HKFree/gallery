@@ -18,10 +18,10 @@ it('lets an SO user upload multiple images and generates thumbnails', function (
             ],
         ])->assertRedirect();
 
-    Storage::disk('public')->assertExists('gallery/13/201/alpha.jpg');
-    Storage::disk('public')->assertExists('gallery/13/201/thumbs/alpha.jpg');
-    Storage::disk('public')->assertExists('gallery/13/201/beta.png');
-    Storage::disk('public')->assertExists('gallery/13/201/thumbs/beta.png');
+    Storage::disk('public')->assertExists('gallery/ap/13/201/alpha.jpg');
+    Storage::disk('public')->assertExists('gallery/ap/13/201/thumbs/alpha.jpg');
+    Storage::disk('public')->assertExists('gallery/ap/13/201/beta.png');
+    Storage::disk('public')->assertExists('gallery/ap/13/201/thumbs/beta.png');
 });
 
 it('returns JSON when an AJAX upload succeeds', function () {
@@ -36,8 +36,8 @@ it('returns JSON when an AJAX upload succeeds', function () {
         ->assertOk()
         ->assertJson(['status' => 'ok', 'count' => 1]);
 
-    Storage::disk('public')->assertExists('gallery/13/201/alpha.jpg');
-    Storage::disk('public')->assertExists('gallery/13/201/thumbs/alpha.jpg');
+    Storage::disk('public')->assertExists('gallery/ap/13/201/alpha.jpg');
+    Storage::disk('public')->assertExists('gallery/ap/13/201/thumbs/alpha.jpg');
 });
 
 it('rejects oversized images with a 422 JSON error and stores nothing', function () {
@@ -52,21 +52,21 @@ it('rejects oversized images with a 422 JSON error and stores nothing', function
         ->assertStatus(422)
         ->assertJsonValidationErrors('files.0');
 
-    Storage::disk('public')->assertMissing('gallery/13/201/big.jpg');
+    Storage::disk('public')->assertMissing('gallery/ap/13/201/big.jpg');
 });
 
 it('soft-deletes by renaming into the trash and hides it from listings', function () {
     Storage::fake('public');
-    Storage::disk('public')->put('gallery/13/201/gone.jpg', 'x');
+    Storage::disk('public')->put('gallery/ap/13/201/gone.jpg', 'x');
 
     $this->actingAs(User::factory()->admin()->create())
         ->delete(route('gallery.destroy', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'filename' => 'gone.jpg']))
         ->assertRedirect();
 
-    Storage::disk('public')->assertMissing('gallery/13/201/gone.jpg');
+    Storage::disk('public')->assertMissing('gallery/ap/13/201/gone.jpg');
 
     expect(app(GalleryStorage::class)->imageNames('pub', 13, 201))->not->toContain('gone.jpg')
-        ->and(collect(Storage::disk('public')->files('gallery/13/201'))
+        ->and(collect(Storage::disk('public')->files('gallery/ap/13/201'))
             ->contains(fn (string $path) => str_contains($path, '_trashed_')))->toBeTrue();
 });
 

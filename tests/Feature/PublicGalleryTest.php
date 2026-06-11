@@ -8,9 +8,9 @@ beforeEach(function () {
 });
 
 it('shows public images sorted by name and hides trashed files', function () {
-    Storage::disk('public')->put('gallery/13/201/b.jpg', 'x');
-    Storage::disk('public')->put('gallery/13/201/a.jpg', 'x');
-    Storage::disk('public')->put('gallery/13/201/_trashed_20260101000000_c.jpg', 'x');
+    Storage::disk('public')->put('gallery/ap/13/201/b.jpg', 'x');
+    Storage::disk('public')->put('gallery/ap/13/201/a.jpg', 'x');
+    Storage::disk('public')->put('gallery/ap/13/201/_trashed_20260101000000_c.jpg', 'x');
 
     $response = $this->get(route('gallery.public', ['area' => 13, 'ap' => 201]))
         ->assertSuccessful()
@@ -29,7 +29,7 @@ it('shows the locked Dokumentace link to the private gallery', function () {
 });
 
 it('hides manage controls from guests', function () {
-    Storage::disk('public')->put('gallery/13/201/a.jpg', 'x');
+    Storage::disk('public')->put('gallery/ap/13/201/a.jpg', 'x');
 
     $this->get(route('gallery.public', ['area' => 13, 'ap' => 201]))
         ->assertDontSee('data-dropzone', escape: false)
