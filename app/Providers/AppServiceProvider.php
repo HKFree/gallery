@@ -26,6 +26,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Event::listen(SocialiteWasCalled::class, [KeycloakExtendSocialite::class, 'handle']);
 
-        Gate::define('manage-gallery', fn (User $user): bool => $user->hasRole(config('services.gallery.admin_role')));
+        Gate::define('manage-gallery', fn (User $user): bool => $user->hasAnyRole(config('services.gallery.admin_roles')));
     }
 }

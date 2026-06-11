@@ -46,12 +46,12 @@ class UserFactory extends Factory
     }
 
     /**
-     * Indicate that the user carries the gallery admin (SO) role.
+     * Indicate that the user carries a gallery admin role.
      */
     public function admin(): static
     {
         return $this->state(fn (array $attributes) => [
-            'roles' => [config('services.gallery.admin_role', 'SO')],
+            'roles' => [config('services.gallery.admin_roles')[0] ?? 'SO'],
         ]);
     }
 }

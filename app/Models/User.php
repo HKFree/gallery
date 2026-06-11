@@ -38,4 +38,14 @@ class User extends Authenticatable
     {
         return in_array($role, $this->roles ?? [], strict: true);
     }
+
+    /**
+     * Determine whether the user carries any of the given Keycloak realm roles.
+     *
+     * @param  list<string>  $roles
+     */
+    public function hasAnyRole(array $roles): bool
+    {
+        return array_intersect($roles, $this->roles ?? []) !== [];
+    }
 }

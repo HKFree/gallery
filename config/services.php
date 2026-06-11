@@ -50,7 +50,9 @@ return [
     ],
 
     'gallery' => [
-        'admin_role' => env('GALLERY_ADMIN_ROLE', 'SO'),
+        'admin_roles' => array_values(array_filter(
+            array_map('trim', explode(',', (string) env('GALLERY_ADMIN_ROLES', 'SO,ZSO,PREDSTAVENSTVO,VV')))
+        )),
     ],
 
 ];

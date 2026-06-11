@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 
@@ -51,6 +52,16 @@ it('logs in an ordinary user with no roles', function () {
 
     expect($user->roles)->toBe([]);
     expect($user->hasRole('SO'))->toBeFalse();
+});
+
+it('grants manage-gallery when the user carries any configured admin role', function () {
+    config()->set('services.gallery.admin_roles', ['VV', 'SO']);
+
+    $allowed = User::factory()->create(['roles' => ['VV']]);
+    $denied = User::factory()->create(['roles' => ['ZSO']]);
+
+    expect(Gate::forUser($allowed)->allows('manage-gallery'))->toBeTrue();
+    expect(Gate::forUser($denied)->allows('manage-gallery'))->toBeFalse();
 });
 
 it('stores no roles when the groups claim is absent', function () {
