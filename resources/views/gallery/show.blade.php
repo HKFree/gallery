@@ -42,7 +42,13 @@
             <p class="text-sm text-gray-600">
                 Přetáhněte sem obrázky nebo <span class="font-medium text-emerald-700">klikněte pro výběr</span>
             </p>
-            <p data-dropzone-status class="mt-2 text-xs text-gray-400"></p>
+            <div class="mt-2 flex items-center justify-center gap-2">
+                <svg data-dropzone-spinner class="hidden h-4 w-4 animate-spin text-emerald-600" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <p data-dropzone-status class="text-xs text-gray-400"></p>
+            </div>
         </div>
     @endif
 

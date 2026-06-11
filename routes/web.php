@@ -40,7 +40,7 @@ Route::middleware('auth')->group(function () {
 });
 
 /*
- * Write actions (upload / soft-delete) — authenticated SO role only.
+ * Write actions (upload / soft-delete) — authenticated SO,VV,etc. role only.
  */
 Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
     Route::post('/gal/{visibility}/area/{area}/ap/{ap}/upload', [GalleryController::class, 'upload'])

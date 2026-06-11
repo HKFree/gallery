@@ -6,10 +6,18 @@ const csrfToken = () =>
 function initDropzone(zone) {
     const input = zone.querySelector('[data-dropzone-input]');
     const status = zone.querySelector('[data-dropzone-status]');
+    const spinner = zone.querySelector('[data-dropzone-spinner]');
     const uploadUrl = zone.dataset.uploadUrl;
 
     const setStatus = (text) => {
         if (status) status.textContent = text;
+    };
+
+    // Toggle the zone's busy state: disable interaction and show the spinner.
+    const setBusy = (busy) => {
+        zone.classList.toggle('pointer-events-none', busy);
+        zone.classList.toggle('opacity-60', busy);
+        spinner?.classList.toggle('hidden', !busy);
     };
 
     // Pull the human-readable reason out of a failed JSON response.
@@ -36,7 +44,7 @@ function initDropzone(zone) {
             return;
         }
 
-        zone.classList.add('pointer-events-none', 'opacity-60');
+        setBusy(true);
 
         let uploaded = 0;
         const errors = [];
@@ -77,7 +85,7 @@ function initDropzone(zone) {
         }
 
         if (errors.length > 0) {
-            zone.classList.remove('pointer-events-none', 'opacity-60');
+            setBusy(false);
             setStatus(`Nahráno ${uploaded}/${files.length}, chyb: ${errors.length}.`);
             window.alert('Některé soubory se nepodařilo nahrát:\n\n' + errors.join('\n'));
         }

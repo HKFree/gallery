@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Reads the network's Areas and their APs from the hkfree Userdb API.
@@ -28,12 +29,16 @@ class UserdbService
         return Cache::remember(
             self::CACHE_KEY,
             now()->addMinutes(self::CACHE_TTL_MINUTES),
-            fn (): array => Http::withBasicAuth(
-                (string) config('services.userdb.username'),
-                (string) config('services.userdb.password'),
-            )->get((string) config('services.userdb.areas_url'))
-                ->throw()
-                ->json(),
+            function (): array {
+                Log::info('Userdb areas request made');
+
+                return Http::withBasicAuth(
+                    (string) config('services.userdb.username'),
+                    (string) config('services.userdb.password'),
+                )->get((string) config('services.userdb.areas_url'))
+                    ->throw()
+                    ->json();
+            },
         );
     }
 

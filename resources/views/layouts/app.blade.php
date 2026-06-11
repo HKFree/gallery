@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', config('app.name')) — {{ config('app.name') }}</title>
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="min-h-full bg-gray-50 text-gray-900 antialiased">
     <header class="border-b border-gray-200 bg-white">
         <div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
             <a href="{{ route('home') }}" class="text-lg font-semibold tracking-tight">
-                {{ config('app.name') }} <span class="text-gray-400">Galerie</span>
+                {{ config('app.name') }}
             </a>
 
             <nav class="flex items-center gap-3 text-sm">
@@ -22,7 +23,7 @@
                     @endcan
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
-                        <button type="submit" class="rounded-md px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-100">
+                        <button type="submit" class="cursor-pointer rounded-md px-3 py-1.5 font-medium text-gray-600 hover:bg-gray-100">
                             Odhlásit
                         </button>
                     </form>

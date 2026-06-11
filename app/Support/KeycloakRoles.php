@@ -23,7 +23,7 @@ class KeycloakRoles
     public static function fromKeycloakUser(User $user): array
     {
         $raw = $user->getRaw();
-        Log::info('Extracting Keycloak roles from user raw data', ['raw' => $raw]);
+        //Log::info('Extracting Keycloak roles from user raw data', ['raw' => $raw]);
         $groups = is_array($raw) ? ($raw[self::CLAIM] ?? []) : [];
 
         return self::normalize($groups);
