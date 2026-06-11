@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 beforeEach(fn () => fakeUserdbAreas());
 
 it('lets an SO user upload multiple images and generates thumbnails', function () {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $this->actingAs(User::factory()->admin()->create())
         ->post(route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]), [
@@ -18,14 +18,14 @@ it('lets an SO user upload multiple images and generates thumbnails', function (
             ],
         ])->assertRedirect();
 
-    Storage::disk('public')->assertExists('gallery/ap/13/201/alpha.jpg');
-    Storage::disk('public')->assertExists('gallery/ap/13/201/thumbs/alpha.jpg');
-    Storage::disk('public')->assertExists('gallery/ap/13/201/beta.png');
-    Storage::disk('public')->assertExists('gallery/ap/13/201/thumbs/beta.png');
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/alpha.jpg');
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/alpha.jpg');
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/beta.png');
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/beta.png');
 });
 
 it('returns JSON when an AJAX upload succeeds', function () {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $this->actingAs(User::factory()->admin()->create())
         ->post(
@@ -36,12 +36,12 @@ it('returns JSON when an AJAX upload succeeds', function () {
         ->assertOk()
         ->assertJson(['status' => 'ok', 'count' => 1]);
 
-    Storage::disk('public')->assertExists('gallery/ap/13/201/alpha.jpg');
-    Storage::disk('public')->assertExists('gallery/ap/13/201/thumbs/alpha.jpg');
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/alpha.jpg');
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/alpha.jpg');
 });
 
 it('rejects oversized images with a 422 JSON error and stores nothing', function () {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $this->actingAs(User::factory()->admin()->create())
         ->post(
@@ -52,26 +52,26 @@ it('rejects oversized images with a 422 JSON error and stores nothing', function
         ->assertStatus(422)
         ->assertJsonValidationErrors('files.0');
 
-    Storage::disk('public')->assertMissing('gallery/ap/13/201/big.jpg');
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/big.jpg');
 });
 
 it('soft-deletes by renaming into the trash and hides it from listings', function () {
-    Storage::fake('public');
-    Storage::disk('public')->put('gallery/ap/13/201/gone.jpg', 'x');
+    Storage::fake('local');
+    Storage::disk('local')->put('gallery/ap/13/201/pub/gone.jpg', 'x');
 
     $this->actingAs(User::factory()->admin()->create())
         ->delete(route('gallery.destroy', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'filename' => 'gone.jpg']))
         ->assertRedirect();
 
-    Storage::disk('public')->assertMissing('gallery/ap/13/201/gone.jpg');
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/gone.jpg');
 
     expect(app(GalleryStorage::class)->imageNames('pub', 13, 201))->not->toContain('gone.jpg')
-        ->and(collect(Storage::disk('public')->files('gallery/ap/13/201'))
+        ->and(collect(Storage::disk('local')->files('gallery/ap/13/201/pub'))
             ->contains(fn (string $path) => str_contains($path, '_trashed_')))->toBeTrue();
 });
 
 it('forbids non-SO users from uploading', function () {
-    Storage::fake('public');
+    Storage::fake('local');
 
     $this->actingAs(User::factory()->create())
         ->post(route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]), [

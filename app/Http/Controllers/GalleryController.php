@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class GalleryController extends Controller
 {
@@ -28,10 +29,30 @@ class GalleryController extends Controller
         return $this->showGallery('priv', $area, $ap);
     }
 
+    public function publicImage(int $area, int $ap, string $filename): StreamedResponse
+    {
+        return $this->streamImage('pub', $area, $ap, $filename, thumb: false);
+    }
+
+    public function publicThumb(int $area, int $ap, string $filename): StreamedResponse
+    {
+        return $this->streamImage('pub', $area, $ap, $filename, thumb: true);
+    }
+
+    public function privateImage(int $area, int $ap, string $filename): StreamedResponse
+    {
+        return $this->streamImage('priv', $area, $ap, $filename, thumb: false);
+    }
+
+    public function privateThumb(int $area, int $ap, string $filename): StreamedResponse
+    {
+        return $this->streamImage('priv', $area, $ap, $filename, thumb: true);
+    }
+
     /**
      * Store one or more uploaded images (SO role only).
      */
-    public function upload(Request $request, string $visibility, int $area, int $ap): RedirectResponse|JsonResponse
+    public function upload(Request $request, int $area, int $ap, string $visibility): RedirectResponse|JsonResponse
     {
         $this->resolveAp($area, $ap);
 
@@ -58,7 +79,7 @@ class GalleryController extends Controller
     /**
      * Soft-delete an image (SO role only).
      */
-    public function destroy(Request $request, string $visibility, int $area, int $ap, string $filename): RedirectResponse|JsonResponse
+    public function destroy(Request $request, int $area, int $ap, string $visibility, string $filename): RedirectResponse|JsonResponse
     {
         $this->resolveAp($area, $ap);
 
@@ -99,36 +120,41 @@ class GalleryController extends Controller
     }
 
     /**
-     * Build the image view-model (URLs differ by visibility).
+     * Build the image view-model. All images stream through the controller.
      *
      * @return list<array{name: string, url: string, thumb_url: string, delete_url: string}>
      */
     private function images(string $visibility, int $areaId, int $apId): array
     {
         $names = $this->storage->imageNames($visibility, $areaId, $apId);
+        $route = $visibility === 'priv' ? 'private' : 'public';
 
-        return array_map(function (string $name) use ($visibility, $areaId, $apId): array {
-            $deleteUrl = route('gallery.destroy', [
+        return array_map(fn (string $name): array => [
+            'name' => $name,
+            'url' => route("gallery.{$route}.image", ['area' => $areaId, 'ap' => $apId, 'filename' => $name]),
+            'thumb_url' => route("gallery.{$route}.thumb", ['area' => $areaId, 'ap' => $apId, 'filename' => $name]),
+            'delete_url' => route('gallery.destroy', [
                 'visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => $name,
-            ]);
+            ]),
+        ], $names);
+    }
 
-            if ($visibility === 'priv') {
-                return [
-                    'name' => $name,
-                    'url' => route('gallery.private.image', ['area' => $areaId, 'ap' => $apId, 'filename' => $name]),
-                    'thumb_url' => route('gallery.private.thumb', ['area' => $areaId, 'ap' => $apId, 'filename' => $name]),
-                    'delete_url' => $deleteUrl,
-                ];
-            }
+    /**
+     * Stream an image (or its thumbnail) from the private disk, 404 when missing or trashed.
+     */
+    private function streamImage(string $visibility, int $areaId, int $apId, string $filename, bool $thumb): StreamedResponse
+    {
+        $this->resolveAp($areaId, $apId);
 
-            $disk = Storage::disk('public');
+        $filename = basename($filename);
 
-            return [
-                'name' => $name,
-                'url' => $disk->url($this->storage->path($visibility, $areaId, $apId, $name)),
-                'thumb_url' => $disk->url($this->storage->path($visibility, $areaId, $apId, $name, thumb: true)),
-                'delete_url' => $deleteUrl,
-            ];
-        }, $names);
+        abort_if($this->storage->isTrashed($filename), 404);
+
+        $disk = Storage::disk('local');
+        $path = $this->storage->path($visibility, $areaId, $apId, $filename, $thumb);
+
+        abort_unless($disk->exists($path), 404);
+
+        return $disk->response($path);
     }
 }

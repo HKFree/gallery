@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -13,13 +14,15 @@ use RuntimeException;
 /**
  * Stores, lists and soft-deletes gallery images for a given AP.
  *
- * Public images live on the `public` disk (served directly); private images
- * live on the `local` disk (streamed through an authenticated controller).
- * Thumbnails are generated on upload into a `thumbs/` subdirectory. Deletion
- * is soft: files are renamed with the {@see self::TRASH_PREFIX} and hidden.
+ * All files live on the private `local` disk and are streamed through a
+ * controller; visibility (`pub`/`priv`) is the last path segment of an AP's
+ * directory. Thumbnails are generated on upload into a `thumbs/` subdirectory.
+ * Deletion is soft: files are renamed with the {@see self::TRASH_PREFIX} and hidden.
  */
 class GalleryStorage
 {
+    private const DISK = 'local';
+
     private const TRASH_PREFIX = '_trashed_';
 
     private const THUMBNAIL_WIDTH = 400;
@@ -28,21 +31,11 @@ class GalleryStorage
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
     /**
-     * The storage disk backing the given visibility.
-     */
-    public function diskName(string $visibility): string
-    {
-        return $visibility === 'priv' ? 'local' : 'public';
-    }
-
-    /**
-     * The directory holding an AP's images on its disk.
+     * The directory holding an AP's images for the given visibility.
      */
     public function directory(string $visibility, int $areaId, int $apId): string
     {
-        $base = $visibility === 'priv' ? 'gallery-private' : 'gallery';
-
-        return "{$base}/ap/{$areaId}/{$apId}";
+        return "gallery/ap/{$areaId}/{$apId}/{$visibility}";
     }
 
     /**
@@ -61,8 +54,7 @@ class GalleryStorage
      */
     public function exists(string $visibility, int $areaId, int $apId, string $filename, bool $thumb = false): bool
     {
-        return Storage::disk($this->diskName($visibility))
-            ->exists($this->path($visibility, $areaId, $apId, $filename, $thumb));
+        return $this->disk()->exists($this->path($visibility, $areaId, $apId, $filename, $thumb));
     }
 
     /**
@@ -72,9 +64,7 @@ class GalleryStorage
      */
     public function imageNames(string $visibility, int $areaId, int $apId): array
     {
-        $disk = Storage::disk($this->diskName($visibility));
-
-        return collect($disk->files($this->directory($visibility, $areaId, $apId)))
+        return collect($this->disk()->files($this->directory($visibility, $areaId, $apId)))
             ->map(fn (string $path): string => basename($path))
             ->reject(fn (string $name): bool => str_starts_with($name, self::TRASH_PREFIX))
             ->filter(fn (string $name): bool => $this->isImage($name))
@@ -90,7 +80,7 @@ class GalleryStorage
      */
     public function store(string $visibility, int $areaId, int $apId, UploadedFile $file): string
     {
-        $disk = Storage::disk($this->diskName($visibility));
+        $disk = $this->disk();
         $dir = $this->directory($visibility, $areaId, $apId);
 
         $filename = $this->uniqueFilename($visibility, $areaId, $apId, $file->getClientOriginalName());
@@ -126,7 +116,7 @@ class GalleryStorage
      */
     public function trash(string $visibility, int $areaId, int $apId, string $filename): bool
     {
-        $disk = Storage::disk($this->diskName($visibility));
+        $disk = $this->disk();
         $dir = $this->directory($visibility, $areaId, $apId);
         $filename = basename($filename);
 
@@ -163,7 +153,7 @@ class GalleryStorage
             $base = 'file-'.$base;
         }
 
-        $disk = Storage::disk($this->diskName($visibility));
+        $disk = $this->disk();
         $dir = $this->directory($visibility, $areaId, $apId);
 
         $candidate = "{$base}.{$extension}";
@@ -190,5 +180,13 @@ class GalleryStorage
         $extension = Str::lower(pathinfo($filename, PATHINFO_EXTENSION));
 
         return in_array($extension, self::ALLOWED_EXTENSIONS, true);
+    }
+
+    /**
+     * The private disk backing all gallery files.
+     */
+    private function disk(): Filesystem
+    {
+        return Storage::disk(self::DISK);
     }
 }

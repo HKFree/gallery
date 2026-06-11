@@ -3,7 +3,6 @@
 use App\Http\Controllers\Auth\KeycloakController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\PrivateImageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -16,25 +15,33 @@ Route::get('/auth/callback', [KeycloakController::class, 'callback'])->name('aut
 Route::post('/logout', [KeycloakController::class, 'logout'])->name('logout');
 
 /*
- * Public gallery — open to everyone.
+ * Public gallery — open to everyone. Images stream through the controller.
  */
-Route::get('/gal/pub/area/{area}/ap/{ap}', [GalleryController::class, 'showPublic'])
+Route::get('/gal/area/{area}/ap/{ap}/pub', [GalleryController::class, 'showPublic'])
     ->whereNumber(['area', 'ap'])
     ->name('gallery.public');
+
+Route::get('/gal/area/{area}/ap/{ap}/pub/image/{filename}', [GalleryController::class, 'publicImage'])
+    ->whereNumber(['area', 'ap'])
+    ->name('gallery.public.image');
+
+Route::get('/gal/area/{area}/ap/{ap}/pub/thumb/{filename}', [GalleryController::class, 'publicThumb'])
+    ->whereNumber(['area', 'ap'])
+    ->name('gallery.public.thumb');
 
 /*
  * Private gallery ("Dokumentace") — authenticated users only.
  */
 Route::middleware('auth')->group(function () {
-    Route::get('/gal/priv/area/{area}/ap/{ap}', [GalleryController::class, 'showPrivate'])
+    Route::get('/gal/area/{area}/ap/{ap}/priv', [GalleryController::class, 'showPrivate'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.private');
 
-    Route::get('/gal/priv/area/{area}/ap/{ap}/image/{filename}', [PrivateImageController::class, 'show'])
+    Route::get('/gal/area/{area}/ap/{ap}/priv/image/{filename}', [GalleryController::class, 'privateImage'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.private.image');
 
-    Route::get('/gal/priv/area/{area}/ap/{ap}/thumb/{filename}', [PrivateImageController::class, 'thumb'])
+    Route::get('/gal/area/{area}/ap/{ap}/priv/thumb/{filename}', [GalleryController::class, 'privateThumb'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.private.thumb');
 });
@@ -43,12 +50,12 @@ Route::middleware('auth')->group(function () {
  * Write actions (upload / soft-delete) — authenticated SO,VV,etc. role only.
  */
 Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
-    Route::post('/gal/{visibility}/area/{area}/ap/{ap}/upload', [GalleryController::class, 'upload'])
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/upload', [GalleryController::class, 'upload'])
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.upload');
 
-    Route::delete('/gal/{visibility}/area/{area}/ap/{ap}/image/{filename}', [GalleryController::class, 'destroy'])
+    Route::delete('/gal/area/{area}/ap/{ap}/{visibility}/image/{filename}', [GalleryController::class, 'destroy'])
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.destroy');
