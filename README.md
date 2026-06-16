@@ -1,58 +1,237 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# HKFree Gallery
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A photo gallery for the [HKFree](https://www.hkfree.org) community network. Galleries are
+organized by **area** and **access point (AP)**. Each AP has a **public** gallery (open to
+everyone) and a **private** "Dokumentace" gallery (signed-in users only). Members with the
+right role can upload and remove photos directly in the browser.
 
-## About Laravel
+- **Single sign-on** via Keycloak / OIDC — no local accounts.
+- **Role-based management** — uploading and deleting is restricted to configured Keycloak
+  realm roles (e.g. `SO`, `ZSO`, `PREDSTAVENSTVO`, `VV`).
+- **Area / AP data** is pulled live from the HKFree Userdb API.
+- **Images stream through the application** from a private disk, so private documentation
+  is never directly reachable; thumbnails are generated on demand.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Tech stack
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- PHP 8.3 · [Laravel 13](https://laravel.com)
+- [Laravel Socialite](https://laravel.com/docs/socialite) + Keycloak provider for OIDC login
+- [Intervention Image](https://image.intervention.io) for thumbnails
+- Tailwind CSS 4 + Vite for the frontend
+- SQLite (default) for sessions, cache, queue and app data
+- [Pest](https://pestphp.com) for tests
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Configuration
 
-## Learning Laravel
+The most important environment variables (see `.env.example` for the full list):
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+| Variable | Purpose |
+| --- | --- |
+| `APP_URL` | Public base URL. The Keycloak redirect URI is derived from it (`{APP_URL}/auth/callback`). |
+| `KEYCLOAK_BASE_URL` | Keycloak server, e.g. `https://sso.hkfree.org`. |
+| `KEYCLOAK_REALM` | Keycloak realm. |
+| `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` | OIDC client credentials for this app. |
+| `USERDB_AREAS_URL` | Userdb API endpoint that lists areas and APs. |
+| `USERDB_API_USERNAME` / `USERDB_API_PASSWORD` | Credentials for the Userdb API. |
+| `GALLERY_ADMIN_ROLES` | Comma-separated Keycloak realm roles allowed to manage galleries (OR-ed), e.g. `SO,ZSO,PREDSTAVENSTVO,VV`. |
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Local development
 
 ```bash
-composer require laravel/boost --dev
+composer install
+cp .env.example .env
+php artisan key:generate
 
-php artisan boost:install
+# SQLite database
+touch database/database.sqlite
+php artisan migrate
+
+npm install
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Fill in the `KEYCLOAK_*` and `USERDB_*` values in `.env`, then start everything (PHP
+server, queue worker, log tail and Vite) with a single command:
 
-## Contributing
+```bash
+composer run dev
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Run the test suite with:
 
-## Code of Conduct
+```bash
+php artisan test
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Deployment (Apache)
 
-## Security Vulnerabilities
+This guide deploys the app into a Linux user's home directory at
+`~/websites/hkfree-gallery` and serves it from `galerie.hkfree.org` over HTTPS, with
+Apache running as `www-data`. Replace `<user>` with the account that owns the code.
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### 1. Prerequisites
 
-## License
+```bash
+# Apache modules
+sudo a2enmod rewrite ssl headers
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+# PHP 8.3 + extensions
+sudo apt install php8.3 php8.3-cli libapache2-mod-php8.3 \
+  php8.3-gd php8.3-sqlite3 php8.3-mbstring php8.3-xml \
+  php8.3-curl php8.3-zip php8.3-intl
+
+# Let's Encrypt
+sudo apt install certbot python3-certbot-apache
+```
+
+You also need [Composer](https://getcomposer.org) and [Node.js](https://nodejs.org)
+(used only to build the frontend assets). This guide assumes `mod_php`; if you use
+PHP-FPM instead, configure the handler accordingly.
+
+### 2. Get the code
+
+```bash
+git clone <repo-url> ~/websites/hkfree-gallery
+cd ~/websites/hkfree-gallery
+```
+
+### 3. Install dependencies and build assets
+
+```bash
+composer install --no-dev --optimize-autoloader
+npm ci
+npm run build
+```
+
+### 4. Configure the environment
+
+```bash
+cp .env.example .env
+php artisan key:generate
+```
+
+Edit `.env` for production:
+
+```dotenv
+APP_NAME="HKFree galerie"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://galerie.hkfree.org
+
+DB_CONNECTION=sqlite
+
+KEYCLOAK_BASE_URL=https://sso.hkfree.org
+KEYCLOAK_REALM=...
+KEYCLOAK_CLIENT_ID=...
+KEYCLOAK_CLIENT_SECRET=...
+
+USERDB_AREAS_URL=https://userdb.hkfree.org/userdb/api/areas
+USERDB_API_USERNAME=...
+USERDB_API_PASSWORD=...
+
+GALLERY_ADMIN_ROLES=SO,ZSO,PREDSTAVENSTVO,VV
+```
+
+### 5. Database and optimization caches
+
+```bash
+touch database/database.sqlite
+php artisan migrate --force
+
+php artisan config:cache
+php artisan route:cache
+php artisan view:cache
+```
+
+> `php artisan storage:link` is **not** required — gallery images stream through the
+> application from the private disk. Only run it if you later add public-disk assets.
+
+### 6. Permissions (Apache runs as `www-data`)
+
+Two things must work: Apache needs to **traverse into the home directory** to reach
+`public/`, and it needs to **write** to `storage/`, `bootstrap/cache/` and the SQLite
+database (SQLite also writes a journal in the `database/` directory).
+
+```bash
+# Let www-data traverse the path to the app's public/ directory
+sudo chmod o+x /home/<user>
+sudo chmod o+x /home/<user>/websites
+
+# Own the code as <user>, with www-data as the group
+sudo chown -R <user>:www-data /home/<user>/websites/hkfree-gallery
+
+# Make the runtime directories and the SQLite database group-writable.
+# The setgid bit makes newly created files inherit the www-data group.
+cd ~/websites/hkfree-gallery
+sudo chmod -R ug+rwX storage bootstrap/cache database
+sudo find storage bootstrap/cache -type d -exec chmod g+s {} \;
+sudo chmod 664 database/database.sqlite
+```
+
+> Instead of `chmod o+x` on the home path, you may add `www-data` to `<user>`'s group:
+> `sudo usermod -aG <user> www-data` (requires the home directory to be group-readable
+> and executable). Re-run the permission and cache commands after every deploy that
+> creates new files.
+
+### 7. Apache virtual host
+
+Create `/etc/apache2/sites-available/galerie.hkfree.org.conf`:
+
+```apache
+<VirtualHost *:80>
+    ServerName galerie.hkfree.org
+    DocumentRoot /home/<user>/websites/hkfree-gallery/public
+
+    <Directory /home/<user>/websites/hkfree-gallery/public>
+        AllowOverride All
+        Require all granted
+        Options FollowSymLinks
+    </Directory>
+
+    ErrorLog  ${APACHE_LOG_DIR}/galerie.hkfree.org-error.log
+    CustomLog ${APACHE_LOG_DIR}/galerie.hkfree.org-access.log combined
+</VirtualHost>
+```
+
+Enable it and reload Apache:
+
+```bash
+sudo a2ensite galerie.hkfree.org
+sudo apache2ctl configtest
+sudo systemctl reload apache2
+```
+
+### 8. HTTPS with Let's Encrypt (and HTTP → HTTPS redirect)
+
+Let Certbot obtain the certificate, create the `:443` SSL virtual host, and add the
+HTTP → HTTPS redirect to the port-80 vhost automatically:
+
+```bash
+sudo certbot --apache -d galerie.hkfree.org --redirect
+```
+
+Certificate renewal runs automatically via Certbot's systemd timer — check it with
+`systemctl status certbot.timer`.
+
+If you are **not** using `certbot --apache`, add the redirect to the port-80 vhost
+manually:
+
+```apache
+<VirtualHost *:80>
+    ServerName galerie.hkfree.org
+    RewriteEngine On
+    RewriteCond %{HTTPS} off
+    RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+</VirtualHost>
+```
+
+### 9. Updating an existing deployment
+
+```bash
+cd ~/websites/hkfree-gallery
+git pull
+composer install --no-dev --optimize-autoloader
+npm ci && npm run build
+php artisan migrate --force
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+# Re-apply group ownership if new files were created (see step 6).
+```
