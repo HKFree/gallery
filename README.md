@@ -230,6 +230,8 @@ manually:
 cd ~/websites/hkfree-gallery
 git pull
 composer install --no-dev --optimize-autoloader
+source ~/.bashrc
+nvm use --lts
 npm ci && npm run build
 php artisan migrate --force
 php artisan config:cache && php artisan route:cache && php artisan view:cache
