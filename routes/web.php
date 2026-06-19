@@ -50,7 +50,7 @@ Route::middleware('auth')->group(function () {
  * Write actions (upload / soft-delete) — authenticated SO,VV,etc. role only.
  */
 Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
-    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/upload', [GalleryController::class, 'upload'])
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/upload', [GalleryController::class, 'uploadChunk'])
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.upload');

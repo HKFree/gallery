@@ -1,7 +1,10 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /*
@@ -81,4 +84,33 @@ function fakeUserdbAreas(?array $areas = null): array
     ]);
 
     return $areas;
+}
+
+/**
+ * POST $contents to the chunked gallery upload endpoint as a sequence of chunks under one
+ * upload id, returning the final chunk's response. The current test must already be
+ * authenticated (via {@see TestCase::actingAs()}).
+ */
+function uploadGalleryChunks(string $visibility, int $area, int $ap, string $filename, string $contents, int $chunkSize = 1048576): TestResponse
+{
+    $uploadId = (string) Str::uuid();
+    $chunks = str_split($contents, $chunkSize);
+    $total = count($chunks);
+    $response = null;
+
+    foreach ($chunks as $index => $piece) {
+        $response = test()->post(
+            route('gallery.upload', ['visibility' => $visibility, 'area' => $area, 'ap' => $ap]),
+            [
+                'upload_id' => $uploadId,
+                'chunk_index' => $index,
+                'total_chunks' => $total,
+                'filename' => $filename,
+                'chunk' => UploadedFile::fake()->createWithContent('chunk', $piece),
+            ],
+            ['Accept' => 'application/json'],
+        );
+    }
+
+    return $response;
 }

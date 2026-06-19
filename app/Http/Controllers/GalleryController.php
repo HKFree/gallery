@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
+use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class GalleryController extends Controller
@@ -50,30 +51,40 @@ class GalleryController extends Controller
     }
 
     /**
-     * Store one or more uploaded images (SO role only).
+     * Receive one chunk of a chunked image upload (SO role only).
+     *
+     * The client slices each image into ~1 MB chunks (to stay under PHP's upload limits)
+     * and POSTs them in order under a shared `upload_id`. Chunks are appended to a temp
+     * file; the final chunk triggers validation, storage and thumbnail generation.
      */
-    public function upload(Request $request, int $area, int $ap, string $visibility): RedirectResponse|JsonResponse
+    public function uploadChunk(Request $request, int $area, int $ap, string $visibility): JsonResponse
     {
         $this->resolveAp($area, $ap);
 
         $validated = $request->validate([
-            'files' => ['required', 'array'],
-            'files.*' => ['required', 'file', 'image', 'max:51200'],
+            'upload_id' => ['required', 'string', 'uuid'],
+            'chunk_index' => ['required', 'integer', 'min:0'],
+            'total_chunks' => ['required', 'integer', 'min:1', 'max:60'],
+            'filename' => ['required', 'string', 'max:255'],
+            'chunk' => ['required', 'file', 'max:2048'],
         ], [
-            'files.*.uploaded' => 'Soubor je příliš velký nebo se ho nepodařilo nahrát.',
-            'files.*.max' => 'Soubor je příliš velký (maximálně 50 MB).',
-            'files.*.image' => 'Soubor není platný obrázek.',
+            'chunk.uploaded' => 'Část souboru se nepodařilo nahrát.',
+            'chunk.max' => 'Část souboru je příliš velká.',
         ]);
 
-        foreach ($validated['files'] as $file) {
-            $this->storage->store($visibility, $area, $ap, $file);
+        try {
+            $this->storage->appendChunk($validated['upload_id'], $request->file('chunk'), (int) $validated['chunk_index']);
+
+            if ((int) $validated['chunk_index'] < (int) $validated['total_chunks'] - 1) {
+                return response()->json(['status' => 'pending']);
+            }
+
+            $filename = $this->storage->assembleUpload($visibility, $area, $ap, $validated['upload_id'], $validated['filename']);
+        } catch (RuntimeException $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        if ($request->expectsJson()) {
-            return response()->json(['status' => 'ok', 'count' => count($validated['files'])]);
-        }
-
-        return back();
+        return response()->json(['status' => 'ok', 'filename' => $filename]);
     }
 
     /**

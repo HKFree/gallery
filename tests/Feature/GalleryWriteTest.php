@@ -4,55 +4,93 @@ use App\Models\User;
 use App\Services\GalleryStorage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 beforeEach(fn () => fakeUserdbAreas());
 
-it('lets an SO user upload multiple images and generates thumbnails', function () {
+it('assembles an image from multiple chunks and generates a thumbnail', function () {
     Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
 
-    $this->actingAs(User::factory()->admin()->create())
-        ->post(route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]), [
-            'files' => [
-                UploadedFile::fake()->image('alpha.jpg'),
-                UploadedFile::fake()->image('beta.png'),
-            ],
-        ])->assertRedirect();
+    $image = UploadedFile::fake()->image('alpha.jpg', 600, 600);
+    $contents = file_get_contents($image->getRealPath());
+
+    // Force several chunks regardless of the encoded image's size.
+    uploadGalleryChunks('pub', 13, 201, 'alpha.jpg', $contents, (int) ceil(strlen($contents) / 3))
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'filename' => 'alpha.jpg']);
 
     Storage::disk('local')->assertExists('gallery/ap/13/201/pub/alpha.jpg');
     Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/alpha.jpg');
+    expect(Storage::disk('local')->files('gallery/tmp'))->toBeEmpty();
+});
+
+it('stores a small single-chunk image', function () {
+    Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
+
+    $image = UploadedFile::fake()->image('beta.png');
+    $contents = file_get_contents($image->getRealPath());
+
+    uploadGalleryChunks('pub', 13, 201, 'beta.png', $contents)
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'filename' => 'beta.png']);
+
     Storage::disk('local')->assertExists('gallery/ap/13/201/pub/beta.png');
     Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/beta.png');
 });
 
-it('returns JSON when an AJAX upload succeeds', function () {
+it('returns pending for intermediate chunks and ok for the final chunk', function () {
     Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
 
-    $this->actingAs(User::factory()->admin()->create())
-        ->post(
-            route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]),
-            ['files' => [UploadedFile::fake()->image('alpha.jpg')]],
-            ['Accept' => 'application/json'],
-        )
+    $image = UploadedFile::fake()->image('gamma.jpg', 400, 400);
+    $contents = file_get_contents($image->getRealPath());
+    [$first, $second] = str_split($contents, (int) ceil(strlen($contents) / 2));
+    $uploadId = (string) Str::uuid();
+
+    $base = ['upload_id' => $uploadId, 'total_chunks' => 2, 'filename' => 'gamma.jpg'];
+    $url = route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]);
+    $json = ['Accept' => 'application/json'];
+
+    $this->post($url, [...$base, 'chunk_index' => 0, 'chunk' => UploadedFile::fake()->createWithContent('chunk', $first)], $json)
         ->assertOk()
-        ->assertJson(['status' => 'ok', 'count' => 1]);
+        ->assertJson(['status' => 'pending']);
 
-    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/alpha.jpg');
-    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/alpha.jpg');
+    $this->post($url, [...$base, 'chunk_index' => 1, 'chunk' => UploadedFile::fake()->createWithContent('chunk', $second)], $json)
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'filename' => 'gamma.jpg']);
 });
 
-it('rejects oversized images with a 422 JSON error and stores nothing', function () {
+it('rejects an assembled file that is not a valid image and stores nothing', function () {
+    Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
+
+    uploadGalleryChunks('pub', 13, 201, 'fake.jpg', 'this is plainly not an image')
+        ->assertStatus(422)
+        ->assertJson(['message' => 'Soubor není platný obrázek.']);
+
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/fake.jpg');
+    expect(Storage::disk('local')->files('gallery/tmp'))->toBeEmpty();
+});
+
+it('rejects a chunk larger than the per-request limit', function () {
     Storage::fake('local');
 
     $this->actingAs(User::factory()->admin()->create())
         ->post(
             route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]),
-            ['files' => [UploadedFile::fake()->image('big.jpg')->size(60000)]],
+            [
+                'upload_id' => (string) Str::uuid(),
+                'chunk_index' => 0,
+                'total_chunks' => 1,
+                'filename' => 'big.jpg',
+                'chunk' => UploadedFile::fake()->create('chunk', 3000),
+            ],
             ['Accept' => 'application/json'],
         )
         ->assertStatus(422)
-        ->assertJsonValidationErrors('files.0');
-
-    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/big.jpg');
+        ->assertJsonValidationErrors('chunk');
 });
 
 it('soft-deletes by renaming into the trash and hides it from listings', function () {

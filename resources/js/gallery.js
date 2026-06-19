@@ -1,5 +1,9 @@
 // Gallery drag & drop upload and soft-delete, plain vanilla JS (no framework).
 
+// Slice uploads into 1 MB chunks so each request stays well under PHP's
+// upload_max_filesize / post_max_size; the server reassembles them.
+const CHUNK_SIZE = 1024 * 1024;
+
 const csrfToken = () =>
     document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '';
 
@@ -34,6 +38,47 @@ function initDropzone(zone) {
         }
     };
 
+    // Upload a single file as a sequence of chunks under one upload id.
+    // Returns an error string on failure, or null on success.
+    const uploadFile = async (file, label) => {
+        const uploadId = crypto.randomUUID();
+        const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+
+        for (let index = 0; index < totalChunks; index++) {
+            const chunk = file.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE);
+            const percent = Math.round(((index + 1) / totalChunks) * 100);
+            setStatus(`Nahrávám ${label} (${percent} %)…`);
+
+            const data = new FormData();
+            data.append('chunk', chunk, file.name);
+            data.append('upload_id', uploadId);
+            data.append('chunk_index', index);
+            data.append('total_chunks', totalChunks);
+            data.append('filename', file.name);
+
+            try {
+                const response = await fetch(uploadUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': csrfToken(),
+                        'X-Requested-With': 'XMLHttpRequest',
+                        Accept: 'application/json',
+                    },
+                    body: data,
+                    redirect: 'error',
+                });
+
+                if (!response.ok) {
+                    return `${file.name}: ${await errorMessage(response)}`;
+                }
+            } catch (error) {
+                return `${file.name}: nahrání se nezdařilo.`;
+            }
+        }
+
+        return null;
+    };
+
     const upload = async (fileList) => {
         const all = Array.from(fileList);
         const files = all.filter((file) => file.type.startsWith('image/'));
@@ -49,34 +94,15 @@ function initDropzone(zone) {
         let uploaded = 0;
         const errors = [];
 
-        // Upload one file per request so a large/invalid file can't fail the whole batch
-        // (and each request stays under post_max_size).
-        for (const file of files) {
-            setStatus(`Nahrávám ${uploaded + 1}/${files.length}…`);
+        // Upload one file at a time; each is chunked so a large/invalid file can't fail
+        // the whole batch and every request stays under post_max_size.
+        for (const [index, file] of files.entries()) {
+            const error = await uploadFile(file, `${index + 1}/${files.length}`);
 
-            const data = new FormData();
-            data.append('files[]', file);
-
-            try {
-                const response = await fetch(uploadUrl, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': csrfToken(),
-                        'X-Requested-With': 'XMLHttpRequest',
-                        Accept: 'application/json',
-                    },
-                    body: data,
-                    redirect: 'error',
-                });
-
-                if (!response.ok) {
-                    errors.push(`${file.name}: ${await errorMessage(response)}`);
-                    continue;
-                }
-
+            if (error) {
+                errors.push(error);
+            } else {
                 uploaded++;
-            } catch (error) {
-                errors.push(`${file.name}: nahrání se nezdařilo.`);
             }
         }
 

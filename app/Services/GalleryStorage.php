@@ -3,13 +3,16 @@
 namespace App\Services;
 
 use Illuminate\Contracts\Filesystem\Filesystem;
+use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Lottery;
 use Illuminate\Support\Str;
 use Intervention\Image\Encoders\FileExtensionEncoder;
 use Intervention\Image\Laravel\Facades\Image;
 use RuntimeException;
+use SplFileInfo;
 
 /**
  * Stores, lists and soft-deletes gallery images for a given AP.
@@ -26,6 +29,15 @@ class GalleryStorage
     private const TRASH_PREFIX = '_trashed_';
 
     private const THUMBNAIL_WIDTH = 400;
+
+    /** Temp directory (within the disk) holding in-progress chunked uploads. */
+    private const TMP_DIR = 'gallery/tmp';
+
+    /** Maximum size of an assembled upload, in kilobytes (50 MB). */
+    private const MAX_UPLOAD_KB = 51200;
+
+    /** Orphaned chunk files older than this (hours) are pruned opportunistically. */
+    private const STALE_AFTER_HOURS = 6;
 
     /** @var list<string> */
     private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
@@ -74,16 +86,84 @@ class GalleryStorage
     }
 
     /**
-     * Store an uploaded image and generate its thumbnail.
+     * Append one chunk of a chunked upload to its temp file.
+     *
+     * Chunks must arrive in order: index 0 starts a fresh temp file (discarding any
+     * stale leftover with the same id), later indexes require the temp file to exist.
+     * The running size is capped to keep parity with {@see self::MAX_UPLOAD_KB}.
+     */
+    public function appendChunk(string $uploadId, UploadedFile $chunk, int $chunkIndex): void
+    {
+        $this->pruneStaleUploads();
+
+        $disk = $this->disk();
+        $relative = $this->tmpPath($uploadId);
+        $disk->makeDirectory(self::TMP_DIR);
+        $absolute = $disk->path($relative);
+
+        if ($chunkIndex === 0) {
+            $disk->delete($relative);
+        } elseif (! $disk->exists($relative)) {
+            throw new RuntimeException('Chunk out of order or upload session expired.');
+        }
+
+        $in = fopen($chunk->getRealPath(), 'rb');
+        $out = fopen($absolute, 'ab');
+
+        try {
+            stream_copy_to_stream($in, $out);
+        } finally {
+            fclose($in);
+            fclose($out);
+        }
+
+        if (filesize($absolute) > self::MAX_UPLOAD_KB * 1024) {
+            $disk->delete($relative);
+
+            throw new RuntimeException('Soubor je příliš velký (maximálně 50 MB).');
+        }
+    }
+
+    /**
+     * Validate a fully-uploaded temp file as an image, store it (with thumbnail) and
+     * discard the temp file. Throws and cleans up if the assembled file is not an image.
      *
      * @return string the stored filename
      */
-    public function store(string $visibility, int $areaId, int $apId, UploadedFile $file): string
+    public function assembleUpload(string $visibility, int $areaId, int $apId, string $uploadId, string $originalName): string
+    {
+        $disk = $this->disk();
+        $relative = $this->tmpPath($uploadId);
+        $absolute = $disk->path($relative);
+
+        $extension = Str::lower(pathinfo($originalName, PATHINFO_EXTENSION));
+
+        if (! $disk->exists($relative) || getimagesize($absolute) === false || ! in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+            $disk->delete($relative);
+
+            throw new RuntimeException('Soubor není platný obrázek.');
+        }
+
+        try {
+            $filename = $this->persistImage($visibility, $areaId, $apId, new File($absolute), $originalName);
+        } finally {
+            $disk->delete($relative);
+        }
+
+        return $filename;
+    }
+
+    /**
+     * Store an image file under an AP's directory and generate its thumbnail.
+     *
+     * @return string the stored filename
+     */
+    private function persistImage(string $visibility, int $areaId, int $apId, SplFileInfo $file, string $originalName): string
     {
         $disk = $this->disk();
         $dir = $this->directory($visibility, $areaId, $apId);
 
-        $filename = $this->uniqueFilename($visibility, $areaId, $apId, $file->getClientOriginalName());
+        $filename = $this->uniqueFilename($visibility, $areaId, $apId, $originalName);
         $extension = Str::lower(pathinfo($filename, PATHINFO_EXTENSION)) ?: 'jpg';
 
         if ($disk->putFileAs($dir, $file, $filename) === false) {
@@ -180,6 +260,36 @@ class GalleryStorage
         $extension = Str::lower(pathinfo($filename, PATHINFO_EXTENSION));
 
         return in_array($extension, self::ALLOWED_EXTENSIONS, true);
+    }
+
+    /**
+     * Relative path of a chunked upload's temp file, keyed by a traversal-safe id.
+     */
+    private function tmpPath(string $uploadId): string
+    {
+        if (! Str::isUuid($uploadId)) {
+            throw new RuntimeException('Invalid upload id.');
+        }
+
+        return self::TMP_DIR.'/'.basename($uploadId).'.part';
+    }
+
+    /**
+     * Occasionally delete orphaned chunk files left behind by interrupted uploads.
+     * Runs on a lottery so it costs nothing on the vast majority of requests.
+     */
+    private function pruneStaleUploads(): void
+    {
+        Lottery::odds(1, 50)->winner(function (): void {
+            $disk = $this->disk();
+            $cutoff = now()->subHours(self::STALE_AFTER_HOURS)->getTimestamp();
+
+            foreach ($disk->files(self::TMP_DIR) as $path) {
+                if (str_ends_with($path, '.part') && $disk->lastModified($path) < $cutoff) {
+                    $disk->delete($path);
+                }
+            }
+        })->choose();
     }
 
     /**
