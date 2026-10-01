@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\KeycloakController;
+use App\Http\Controllers\ConfluenceImportController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\TimelineController;
@@ -70,4 +71,10 @@ Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.destroy');
+
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/import', [ConfluenceImportController::class, 'create'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->middleware('throttle:30,1')
+        ->name('confluence.import.create');
 });

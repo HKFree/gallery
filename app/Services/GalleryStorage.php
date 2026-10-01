@@ -34,7 +34,7 @@ class GalleryStorage
     private const TMP_DIR = 'gallery/tmp';
 
     /** Maximum size of an assembled upload, in kilobytes (50 MB). */
-    private const MAX_UPLOAD_KB = 51200;
+    public const MAX_UPLOAD_KB = 51200;
 
     /** Orphaned chunk files older than this (hours) are pruned opportunistically. */
     private const STALE_AFTER_HOURS = 6;
@@ -49,7 +49,7 @@ class GalleryStorage
     private const MAX_THUMBNAIL_MEMORY = 512 * 1024 * 1024;
 
     /** @var list<string> */
-    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    public const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
     /**
      * The directory holding an AP's images for the given visibility.
