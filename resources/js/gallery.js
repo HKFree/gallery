@@ -55,6 +55,8 @@ function initDropzone(zone) {
             data.append('chunk_index', index);
             data.append('total_chunks', totalChunks);
             data.append('filename', file.name);
+            // Often the capture date; the server's fallback when the image has no EXIF date.
+            data.append('client_modified_at', file.lastModified);
 
             try {
                 const response = await fetch(uploadUrl, {

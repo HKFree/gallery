@@ -16,7 +16,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, dom, curl, pdo_sqlite, gd, zip, intl, fileinfo
+          extensions: mbstring, dom, curl, pdo_sqlite, gd, zip, intl, fileinfo, exif
           coverage: none
 
       - name: Cache Composer packages

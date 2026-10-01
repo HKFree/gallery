@@ -50,6 +50,8 @@ return [
     ],
 
     'gallery' => [
+        // Wall-clock timezone of timeline dates (EXIF dates carry no zone; others are converted).
+        'timezone' => env('GALLERY_TIMEZONE', 'Europe/Prague'),
         'admin_roles' => array_values(array_filter(
             array_map('trim', explode(',', (string) env('GALLERY_ADMIN_ROLES', 'SO,ZSO,PREDSTAVENSTVO,VV')))
         )),

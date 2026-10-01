@@ -114,3 +114,52 @@ function uploadGalleryChunks(string $visibility, int $area, int $ap, string $fil
 
     return $response;
 }
+
+/**
+ * A small JPEG carrying a hand-built EXIF block with the given date tags
+ * (format `YYYY:MM:DD HH:MM:SS`), for testing EXIF date extraction.
+ */
+function jpegWithExif(?string $dateTimeOriginal = null, ?string $dateTimeDigitized = null, ?string $dateTime = null): string
+{
+    // IFD0 holds DateTime (0x0132) and the pointer to the Exif IFD (0x8769); the Exif IFD
+    // holds DateTimeOriginal (0x9003) and DateTimeDigitized (0x9004). Tags sorted ascending.
+    $ifd0 = array_filter([0x0132 => $dateTime]);
+    $exif = array_filter([0x9003 => $dateTimeOriginal, 0x9004 => $dateTimeDigitized]);
+
+    if ($exif !== []) {
+        $ifd0[0x8769] = true;
+    }
+
+    ksort($ifd0);
+
+    $exifOffset = 8 + 2 + 12 * count($ifd0) + 4;
+    $dataOffset = $exifOffset + ($exif === [] ? 0 : 2 + 12 * count($exif) + 4);
+    $data = '';
+
+    $directory = function (array $tags) use (&$data, $exifOffset, $dataOffset): string {
+        $entries = pack('v', count($tags));
+
+        foreach ($tags as $tag => $value) {
+            if ($value === true) {
+                $entries .= pack('vvVV', $tag, 4, 1, $exifOffset);
+
+                continue;
+            }
+
+            $value .= "\0";
+            $entries .= pack('vvVV', $tag, 2, strlen($value), $dataOffset + strlen($data));
+            $data .= $value;
+        }
+
+        return $entries.pack('V', 0);
+    };
+
+    $tiff = "II*\0".pack('V', 8).$directory($ifd0);
+    $tiff .= $exif === [] ? '' : $directory($exif);
+    $app1 = "Exif\0\0".$tiff.$data;
+
+    $image = UploadedFile::fake()->image('exif.jpg', 8, 8);
+    $jpeg = file_get_contents($image->getRealPath());
+
+    return substr($jpeg, 0, 2)."\xFF\xE1".pack('n', strlen($app1) + 2).$app1.substr($jpeg, 2);
+}

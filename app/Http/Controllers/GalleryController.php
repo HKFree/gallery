@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GalleryIndex;
 use App\Services\GalleryStorage;
 use App\Services\UserdbService;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,7 @@ class GalleryController extends Controller
     public function __construct(
         private readonly UserdbService $userdb,
         private readonly GalleryStorage $storage,
+        private readonly GalleryIndex $index,
     ) {}
 
     public function showPublic(int $area, int $ap): View
@@ -59,7 +61,9 @@ class GalleryController extends Controller
      *
      * The client slices each image into ~1 MB chunks (to stay under PHP's upload limits)
      * and POSTs them in order under a shared `upload_id`. Chunks are appended to a temp
-     * file; the final chunk triggers validation, storage and thumbnail generation.
+     * file; the final chunk triggers validation, storage and thumbnail generation, then the
+     * image is added to the timeline index. An indexing failure is reported but does not fail
+     * the upload: the file is stored, and the next reconcile indexes it.
      */
     public function uploadChunk(Request $request, int $area, int $ap, string $visibility): JsonResponse
     {
@@ -71,6 +75,7 @@ class GalleryController extends Controller
             'total_chunks' => ['required', 'integer', 'min:1', 'max:60'],
             'filename' => ['required', 'string', 'max:255'],
             'chunk' => ['required', 'file', 'max:2048'],
+            'client_modified_at' => ['nullable', 'integer', 'min:0'],
         ], [
             'chunk.uploaded' => 'Část souboru se nepodařilo nahrát.',
             'chunk.max' => 'Část souboru je příliš velká.',
@@ -88,6 +93,10 @@ class GalleryController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
+        $clientModifiedAt = isset($validated['client_modified_at']) ? (int) $validated['client_modified_at'] : null;
+
+        rescue(fn () => $this->index->record($visibility, $area, $ap, $filename, $clientModifiedAt));
+
         return response()->json(['status' => 'ok', 'filename' => $filename]);
     }
 
@@ -99,6 +108,7 @@ class GalleryController extends Controller
         $this->resolveAp($area, $ap);
 
         $this->storage->trash($visibility, $area, $ap, $filename);
+        $this->index->forget($visibility, $area, $ap, $filename);
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);

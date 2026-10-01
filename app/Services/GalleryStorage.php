@@ -71,6 +71,51 @@ class GalleryStorage
     }
 
     /**
+     * Absolute filesystem path of an image (or its thumbnail).
+     */
+    public function absolutePath(string $visibility, int $areaId, int $apId, string $filename, bool $thumb = false): string
+    {
+        return $this->disk()->path($this->path($visibility, $areaId, $apId, $filename, $thumb));
+    }
+
+    /**
+     * Unix timestamp of an image's last modification (its upload time, unless copied in).
+     */
+    public function lastModified(string $visibility, int $areaId, int $apId, string $filename): int
+    {
+        return $this->disk()->lastModified($this->path($visibility, $areaId, $apId, $filename));
+    }
+
+    /**
+     * Every gallery directory present on disk.
+     *
+     * @return list<array{visibility: string, area: int, ap: int}>
+     */
+    public function galleryDirectories(): array
+    {
+        $disk = $this->disk();
+        $directories = [];
+
+        foreach ($disk->directories('gallery/ap') as $areaDir) {
+            foreach ($disk->directories($areaDir) as $apDir) {
+                [$area, $ap] = [basename($areaDir), basename($apDir)];
+
+                if (! ctype_digit($area) || ! ctype_digit($ap)) {
+                    continue;
+                }
+
+                foreach (['pub', 'priv'] as $visibility) {
+                    if ($disk->exists("{$apDir}/{$visibility}")) {
+                        $directories[] = ['visibility' => $visibility, 'area' => (int) $area, 'ap' => (int) $ap];
+                    }
+                }
+            }
+        }
+
+        return $directories;
+    }
+
+    /**
      * Whether the image (or its thumbnail) exists on disk.
      */
     public function exists(string $visibility, int $areaId, int $apId, string $filename, bool $thumb = false): bool
