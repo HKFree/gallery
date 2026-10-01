@@ -130,7 +130,7 @@ class ConfluenceImporter
             $import->items()->createMany(array_map(fn (ConfluenceAttachment $photo): array => [
                 'attachment_id' => $photo->id,
                 'attachment_version' => $photo->version,
-                'original_filename' => $photo->filename,
+                'original_filename' => $photo->galleryFilename(),
                 'size' => $photo->size,
                 'download_path' => $photo->downloadPath,
                 'attachment_created_at' => $photo->createdAt->utc(),

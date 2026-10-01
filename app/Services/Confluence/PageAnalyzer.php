@@ -6,7 +6,6 @@ use App\Services\GalleryStorage;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
-use Illuminate\Support\Str;
 
 /**
  * Works out which photos a Confluence page shows, from its storage-format body:
@@ -158,9 +157,8 @@ class PageAnalyzer
      */
     private function rejectionReason(ConfluenceAttachment $attachment): ?string
     {
-        $extension = Str::lower(pathinfo($attachment->filename, PATHINFO_EXTENSION));
-
-        if (! in_array($attachment->mediaType, self::IMAGE_MEDIA_TYPES, true) || ! in_array($extension, GalleryStorage::ALLOWED_EXTENSIONS, true)) {
+        // The media type decides; a missing or odd extension is fixed when storing.
+        if (! in_array($attachment->mediaType, self::IMAGE_MEDIA_TYPES, true)) {
             return 'nepodporovaný formát';
         }
 

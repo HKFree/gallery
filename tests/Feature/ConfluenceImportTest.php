@@ -6,6 +6,7 @@ use App\Jobs\ImportConfluencePage;
 use App\Models\ConfluenceImport;
 use App\Models\ConfluenceImportItem;
 use App\Models\GalleryImage;
+use App\Models\GalleryImageDescription;
 use App\Models\User;
 use App\Services\Confluence\ConfluenceException;
 use App\Services\Confluence\ConfluenceImporter;
@@ -83,6 +84,15 @@ it('downloads, stores and indexes the photos, dated by EXIF or the attachment da
     expect(GalleryImage::where('filename', 'exif.jpg')->sole()->sort_at->format('Y-m-d H:i'))->toBe('2010-07-01 12:00')
         ->and(GalleryImage::where('filename', 'plain.jpg')->sole()->sort_at->format('Y-m-d H:i'))->toBe('2011-05-25 21:49')
         ->and(Storage::disk('local')->files('gallery/tmp'))->toBe([]);
+});
+
+it('stores photos named without an extension under a proper name, with their direction', function () {
+    fakeImportablePage([confluenceAttachment('Pohled směr Jih ')]);
+
+    startImport();
+
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/Pohled směr Jih.jpg');
+    expect(GalleryImageDescription::sole())->heading->toBe(180)->heading_source->toBe('filename');
 });
 
 it('records failed photos with a reason and goes on', function () {

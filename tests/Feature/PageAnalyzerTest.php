@@ -95,6 +95,17 @@ it('skips images of other pages, external images and missing attachments, with r
     ]);
 });
 
+it('accepts images named without an extension', function () {
+    $analysis = analyzePage(galleryMacro(), [attachment('Pohled směr Jih '), attachment('scan', 'image/tiff')]);
+
+    expect(photoNames($analysis))->toBe(['Pohled směr Jih '])
+        ->and($analysis->photos[0]->galleryFilename())->toBe('Pohled směr Jih.jpg')
+        ->and(attachment('a.PNG', 'image/png')->galleryFilename())->toBe('a.PNG')
+        ->and(attachment('photo', 'image/webp')->galleryFilename())->toBe('photo.webp')
+        ->and(attachment('IMG 2012.05.10', 'image/jpeg')->galleryFilename())->toBe('IMG 2012.05.10.jpg')
+        ->and($analysis->skipped)->toBe([['name' => 'scan', 'reason' => 'nepodporovaný formát']]);
+});
+
 it('skips images the gallery cannot store', function () {
     $attachments = [
         attachment('ok.jpg'),
