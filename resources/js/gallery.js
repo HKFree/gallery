@@ -172,6 +172,47 @@ document.addEventListener('click', (e) => {
     handleDelete(button);
 });
 
+// Set a photo's view direction from the compass on its tile, and show the new description.
+document.addEventListener('submit', async (e) => {
+    const form = e.target.closest('[data-heading-form]');
+    if (!form) return;
+
+    e.preventDefault();
+
+    try {
+        const response = await fetch(form.action, {
+            method: 'POST',
+            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+            body: new FormData(form, e.submitter),
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const { description } = await response.json();
+        const figure = form.closest('[data-image]');
+        const image = figure.querySelector('img');
+        let text = figure.querySelector('[data-description]');
+
+        if (description) {
+            if (!text) {
+                text = document.createElement('p');
+                text.dataset.description = '';
+                text.className = 'line-clamp-2 px-2 pb-1.5 text-xs leading-snug text-gray-600';
+                figure.append(text);
+            }
+            text.textContent = description;
+        } else {
+            text?.remove();
+        }
+
+        image.alt = description ?? image.dataset.name;
+        image.title = description ?? '';
+        form.closest('details').open = false;
+    } catch {
+        window.alert('Uložení směru se nezdařilo.');
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-dropzone]').forEach(initDropzone);
 });

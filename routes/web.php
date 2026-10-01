@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\KeycloakController;
 use App\Http\Controllers\ConfluenceImportController;
+use App\Http\Controllers\DescriptionController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\TimelineController;
@@ -71,6 +72,16 @@ Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.destroy');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/description', [DescriptionController::class, 'update'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.description');
+
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/scene-queue', [DescriptionController::class, 'sceneQueue'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.scene-queue');
 
     Route::get('/gal/area/{area}/ap/{ap}/{visibility}/import', [ConfluenceImportController::class, 'create'])
         ->whereIn('visibility', ['pub', 'priv'])

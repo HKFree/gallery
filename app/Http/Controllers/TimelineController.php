@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryImage;
+use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
 use App\Services\Timeline;
 use App\Services\UserdbService;
@@ -21,6 +22,7 @@ class TimelineController extends Controller
         private readonly UserdbService $userdb,
         private readonly GalleryIndex $index,
         private readonly Timeline $timeline,
+        private readonly GalleryDescriptions $descriptions,
     ) {}
 
     /**
@@ -34,11 +36,7 @@ class TimelineController extends Controller
     {
         $includePrivate = $request->user() !== null && $request->boolean('priv');
 
-        $aps = $this->userdb->areas()
-            ->flatMap(fn (array $area): array => $area['aps']
-                ->map(fn (array $ap): array => [...$ap, 'area' => ['id' => $area['id'], 'name' => $area['name']]])
-                ->all())
-            ->keyBy('id');
+        $aps = $this->userdb->aps();
 
         $images = GalleryImage::query()
             ->whereIn('visibility', $includePrivate ? ['pub', 'priv'] : ['pub'])
@@ -114,7 +112,12 @@ class TimelineController extends Controller
         $from = $request->string('from')->toString() ?: null;
         $months = $this->timeline->months($images);
         $page = $this->timeline->page($images, $from);
-        $sections = $this->timeline->sections($page, $months, $tile);
+        $descriptions = $this->descriptions->textsForImages($page->items());
+
+        $sections = $this->timeline->sections($page, $months, fn (GalleryImage $image): array => [
+            ...$tile($image),
+            'description' => $descriptions["{$image->visibility}/{$image->area_id}/{$image->ap_id}/{$image->filename}"] ?? null,
+        ]);
 
         if ($request->ajax()) {
             return view('timeline.fragment', ['sections' => $sections, 'nextUrl' => $page->nextPageUrl(), 'canManage' => $canManage]);

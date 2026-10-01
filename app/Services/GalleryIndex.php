@@ -21,10 +21,12 @@ class GalleryIndex
     public function __construct(
         private readonly GalleryStorage $storage,
         private readonly ImageDate $dates,
+        private readonly GalleryDescriptions $descriptions,
     ) {}
 
     /**
-     * Index (or re-index) a stored image, reading its dates from EXIF and the file.
+     * Index (or re-index) a stored image, reading its dates from EXIF and the file, and capture
+     * the facts its description is built from (GPS position, view direction).
      *
      * @param  CarbonInterface|null  $sourceDate  a date reported by the image's source (the
      *                                            browser's `File.lastModified`, a Confluence
@@ -32,10 +34,14 @@ class GalleryIndex
      */
     public function record(string $visibility, int $areaId, int $apId, string $filename, ?CarbonInterface $sourceDate = null): GalleryImage
     {
-        return GalleryImage::updateOrCreate(
+        $image = GalleryImage::updateOrCreate(
             $this->key($visibility, $areaId, $apId, $filename),
             $this->dateAttributes($visibility, $areaId, $apId, $filename, $sourceDate),
         );
+
+        $this->descriptions->capture($visibility, $areaId, $apId, $filename);
+
+        return $image;
     }
 
     /**

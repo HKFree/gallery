@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
 use App\Services\GalleryStorage;
 use App\Services\UserdbService;
@@ -26,6 +27,7 @@ class GalleryController extends Controller
         private readonly UserdbService $userdb,
         private readonly GalleryStorage $storage,
         private readonly GalleryIndex $index,
+        private readonly GalleryDescriptions $descriptions,
     ) {}
 
     public function showPublic(int $area, int $ap): View
@@ -111,6 +113,7 @@ class GalleryController extends Controller
 
         $this->storage->trash($visibility, $area, $ap, $filename);
         $this->index->forget($visibility, $area, $ap, $filename);
+        $this->descriptions->forget($visibility, $area, $ap, $filename);
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);
@@ -149,14 +152,17 @@ class GalleryController extends Controller
     /**
      * Build the image view-model. All images stream through the controller.
      *
-     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string}>
+     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string, description: string|null}>
      */
     private function images(string $visibility, int $areaId, int $apId): array
     {
-        return array_map(
-            fn (string $name): array => GalleryLinks::image($visibility, $areaId, $apId, $name),
-            $this->storage->imageNames($visibility, $areaId, $apId),
-        );
+        $names = $this->storage->imageNames($visibility, $areaId, $apId);
+        $descriptions = $this->descriptions->texts($visibility, $areaId, $apId, $names);
+
+        return array_map(fn (string $name): array => [
+            ...GalleryLinks::image($visibility, $areaId, $apId, $name),
+            'description' => $descriptions[$name] ?? null,
+        ], $names);
     }
 
     /**

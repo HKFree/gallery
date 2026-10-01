@@ -11,7 +11,10 @@ use Illuminate\Support\Facades\Log;
  * Reads the network's Areas and their APs from the hkfree Userdb API.
  *
  * The remote response is an object keyed by area id; each area carries a
- * `jmeno` (name) and an `aps` map. Results are cached for five minutes.
+ * `jmeno` (name) and an `aps` map. Each AP has a `gps` string ("50.22795,15.834133",
+ * latitude then longitude), which is optional for older APs. Results are cached for five minutes.
+ *
+ * @phpstan-type Ap array{id: int, name: string, active: bool, lat: float|null, lon: float|null}
  */
 class UserdbService
 {
@@ -45,7 +48,7 @@ class UserdbService
     /**
      * All areas, normalized and sorted by name.
      *
-     * @return Collection<int, array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool}>}>
+     * @return Collection<int, array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool, lat: float|null, lon: float|null}>}>
      */
     public function areas(): Collection
     {
@@ -58,7 +61,7 @@ class UserdbService
     /**
      * A single area by id, or null when unknown.
      *
-     * @return array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool}>}|null
+     * @return array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool, lat: float|null, lon: float|null}>}|null
      */
     public function findArea(int $areaId): ?array
     {
@@ -94,7 +97,7 @@ class UserdbService
      * The home-page tree. An area with exactly one AP whose name equals the
      * area name is collapsed into a single direct link.
      *
-     * @return Collection<int, array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool}>, collapsed: bool, link_ap: array{id: int, name: string, active: bool}|null}>
+     * @return Collection<int, array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool, lat: float|null, lon: float|null}>, collapsed: bool, link_ap: array{id: int, name: string, active: bool, lat: float|null, lon: float|null}|null}>
      */
     public function homeTree(): Collection
     {
@@ -111,10 +114,43 @@ class UserdbService
     }
 
     /**
+     * Every AP of every area, keyed by AP id (AP ids are unique across areas), each with its area.
+     *
+     * @return Collection<int, array{id: int, name: string, active: bool, lat: float|null, lon: float|null, area: array{id: int, name: string}}>
+     */
+    public function aps(): Collection
+    {
+        return $this->areas()
+            ->flatMap(fn (array $area): array => $area['aps']
+                ->map(fn (array $ap): array => [...$ap, 'area' => ['id' => $area['id'], 'name' => $area['name']]])
+                ->all())
+            ->keyBy('id');
+    }
+
+    /**
+     * Parse an AP's `gps` field ("lat,lon" in decimal degrees). Older APs may have none or a
+     * malformed value; anything that isn't a plausible coordinate pair counts as unknown.
+     *
+     * @return array{lat: float|null, lon: float|null}
+     */
+    private function coordinates(mixed $gps): array
+    {
+        $unknown = ['lat' => null, 'lon' => null];
+
+        if (! is_string($gps) || preg_match('/^\s*(-?\d{1,3}(?:\.\d+)?)\s*[,;]\s*(-?\d{1,3}(?:\.\d+)?)\s*$/', $gps, $matches) !== 1) {
+            return $unknown;
+        }
+
+        [$lat, $lon] = [(float) $matches[1], (float) $matches[2]];
+
+        return abs($lat) <= 90 && abs($lon) <= 180 && ($lat !== 0.0 || $lon !== 0.0) ? ['lat' => $lat, 'lon' => $lon] : $unknown;
+    }
+
+    /**
      * Normalize a raw area node into a stable shape.
      *
      * @param  array<string, mixed>  $area
-     * @return array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool}>}
+     * @return array{id: int, name: string, aps: Collection<int, array{id: int, name: string, active: bool, lat: float|null, lon: float|null}>}
      */
     private function normalizeArea(array $area): array
     {
@@ -123,6 +159,7 @@ class UserdbService
                 'id' => (int) $ap['id'],
                 'name' => (string) $ap['jmeno'],
                 'active' => (bool) ($ap['aktivni'] ?? false),
+                ...$this->coordinates($ap['gps'] ?? null),
             ])
             ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
             ->values();

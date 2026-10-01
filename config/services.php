@@ -58,6 +58,8 @@ return [
     'gallery' => [
         // Wall-clock timezone of timeline dates (EXIF dates carry no zone; others are converted).
         'timezone' => env('GALLERY_TIMEZONE', 'Europe/Prague'),
+        // Optional self-hosted mirror of the scene recognition model files (Hugging Face layout).
+        'scene_model_url' => env('GALLERY_SCENE_MODEL_URL'),
         'admin_roles' => array_values(array_filter(
             array_map('trim', explode(',', (string) env('GALLERY_ADMIN_ROLES', 'SO,ZSO,PREDSTAVENSTVO,VV')))
         )),

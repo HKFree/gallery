@@ -77,6 +77,13 @@
                 <a href="{{ route($prefix.'.timeline', $parameters) }}" class="rounded-md bg-gray-900 px-4 py-2 font-medium text-white hover:bg-gray-700">Zobrazit na časové ose</a>
                 <a href="{{ route($prefix, $parameters) }}" class="rounded-md border border-gray-200 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50">Zpět do galerie</a>
             </p>
+
+            @if ($counts['imported'] > 0)
+                <p class="mt-4 text-sm text-gray-600">
+                    Volitelně:
+                    <x-gallery.scene-tagging :area="$area" :ap="$ap" :visibility="$visibility" :import="$import->id" />
+                </p>
+            @endif
         @endunless
     </section>
 @endsection

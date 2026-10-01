@@ -15,7 +15,8 @@
             <p data-dropzone-status class="text-xs text-gray-400"></p>
         </div>
     </div>
-    <p class="mt-2 text-right text-sm">
+    <p class="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-1 text-sm">
+        <x-gallery.scene-tagging :area="$area" :ap="$ap" :visibility="$visibility" />
         <a href="{{ route('confluence.import.create', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
            class="font-medium text-emerald-700 hover:text-emerald-800">Import z Confluence</a>
     </p>

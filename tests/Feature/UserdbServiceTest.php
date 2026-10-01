@@ -35,3 +35,23 @@ it('resolves known APs and rejects unknown ones', function () {
         ->and($service->findAp(13, 999))->toBeNull()
         ->and($service->findArea(999))->toBeNull();
 });
+
+it('reads AP coordinates and ignores missing or malformed ones', function () {
+    fakeUserdbAreas([
+        '1' => ['id' => 1, 'jmeno' => 'Oblast', 'aps' => [
+            '10' => ['id' => 10, 'jmeno' => 'A', 'gps' => '50.22795,15.834133'],
+            '11' => ['id' => 11, 'jmeno' => 'B', 'gps' => ' 50.2;15.8 '],
+            '12' => ['id' => 12, 'jmeno' => 'C', 'gps' => null],
+            '13' => ['id' => 13, 'jmeno' => 'D', 'gps' => '50.2 N, 15.8 E'],
+            '14' => ['id' => 14, 'jmeno' => 'E', 'gps' => '0,0'],
+            '15' => ['id' => 15, 'jmeno' => 'F', 'gps' => '150.5,15.8'],
+            '16' => ['id' => 16, 'jmeno' => 'G'],
+        ]],
+    ]);
+
+    $aps = app(UserdbService::class)->aps();
+
+    expect($aps[10])->toMatchArray(['lat' => 50.22795, 'lon' => 15.834133, 'area' => ['id' => 1, 'name' => 'Oblast']])
+        ->and($aps[11])->toMatchArray(['lat' => 50.2, 'lon' => 15.8])
+        ->and($aps->only([12, 13, 14, 15, 16])->map(fn (array $ap) => [$ap['lat'], $ap['lon']])->unique()->values()->all())->toBe([[null, null]]);
+});
