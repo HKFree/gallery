@@ -9,7 +9,7 @@ back into the past. Two scopes:
 A photo is placed by its **taken date** (EXIF `DateTimeOriginal`), falling back to its
 **upload date** when the taken date is missing or implausible.
 
-Status: plan only, nothing implemented.
+Status: plan only, nothing implemented. Open questions are resolved (section 10).
 
 ---
 
@@ -100,10 +100,9 @@ New class `App\Services\ImageDate` with one method, `takenAt(string $absolutePat
   - It would also put an upload made just after midnight on the 1st into the previous month.
   - Open question: should `app.timezone` become `Europe/Prague` instead? See section 10.
 - **`ext-exif`:** present on this machine and in Ubuntu's `php8.3-common`. Add `ext-exif` to
-  `composer.json` `require` (needs your approval as a dependency change) and `exif` to the CI
-  workflow's extension list.
+  `composer.json` `require` (approved) and `exif` to the CI workflow's extension list.
 
-**Optional, recommended:** the upload JS already has `File.lastModified`, which is often the
+**Adopted:** the upload JS already has `File.lastModified`, which is often the
 capture date for files copied straight from a phone or camera. Send it with the final chunk as
 `client_modified_at` and use the chain **EXIF → client lastModified → upload time**.
 
@@ -155,9 +154,8 @@ create duplicates. SQLite write locking is fine at this traffic level.
 - `--dry-run` also prints the **month distribution**. This is a sanity check for the main
   backfill risk: if existing files were copied without preserving mtimes, every image without
   EXIF lands in the deployment month (see section 9).
-- Run it once at deployment (add to the README deploy steps). Optionally run it daily via the
-  scheduler, but the README's Apache deployment has no cron for `schedule:run` yet. Decide in
-  section 10.
+- Run it once at deployment, and **daily via the scheduler** (`Schedule::command('gallery:index')->daily()`
+  in `routes/console.php`). Add the deploy step and the `schedule:run` crontab line to the README.
 
 ## 6. Per-AP timeline (phase 2)
 
@@ -222,9 +220,8 @@ thumbnails.
 
 - Filter in SQL with the valid AP set from `UserdbService::areas()` (cached), not in PHP after
   fetching, because that would break page sizes.
-- **To verify:** are AP ids globally unique in Userdb, or only within an area? If unique,
-  `whereIn('ap_id', …)` is enough. If not, filter on `(area_id, ap_id)` pairs; a generated
-  `ap_key` column `"{area}-{ap}"` keeps that a single `whereIn`.
+- AP ids are globally unique in Userdb (confirmed), so `whereIn('ap_id', $validApIds)` is
+  enough.
 
 **Tiles** show the AP name (from Userdb) under the thumbnail and link to the AP's gallery.
 
@@ -282,8 +279,8 @@ requests once, then 304s or browser cache. This is acceptable; no change needed 
    it. Expect a share of images on upload dates. The `client_modified_at` fallback recovers
    some of them for new uploads.
 3. **Index drift.** Disk changes made outside the app aren't seen by the network timeline
-   until `gallery:index` runs. This is acceptable once the command is run at deploy and on
-   manual disk operations; a scheduled daily run closes the gap if cron is available.
+   until `gallery:index` runs: at most a day with the daily schedule, or immediately if the
+   command is run by hand after manual disk operations.
 4. **Timezone month boundaries.** Covered by converting mtimes to `Europe/Prague` before
    grouping (section 3). It is easy to get wrong, so there's an explicit test at a month
    boundary.
@@ -297,20 +294,25 @@ requests once, then 304s or browser cache. This is acceptable; no change needed 
    any GPS coordinates in them are public. This isn't caused by the timeline, but the timeline
    makes old photos more discoverable. Consider stripping GPS on upload as a separate task.
 
-## 10. Open questions (decide before or during implementation)
+## 10. Decisions
 
-1. **Approve adding `ext-exif`** to `composer.json` (a dependency change).
-2. **Adopt `client_modified_at`** as a middle fallback? Recommended: yes.
-3. **Default view per AP:** keep the grid as default (recommended for now), or make the
-   timeline the default?
-4. **Network timeline and `priv`:** pub-only with an opt-in toggle for logged-in users
-   (recommended), or always include `priv` for logged-in users?
-5. **Scheduler:** is there, or can there be, a cron for `php artisan schedule:run` on the
-   server? If yes, run `gallery:index` daily.
-6. **Timezone:** switch `app.timezone` to `Europe/Prague`, or keep `UTC` and convert only for
-   grouping? Recommended: convert only for grouping; changing the app timezone affects
-   existing timestamps in the DB.
-7. **Userdb AP id uniqueness** across areas: to verify against the real API.
+Confirmed by you:
+
+1. **`ext-exif`** is added to `composer.json` `require`, and `exif` to the CI extensions.
+2. **`client_modified_at`** is adopted. The date chain is **EXIF → client lastModified → upload time**.
+3. **The server can run cron** for `php artisan schedule:run`. `gallery:index` is scheduled
+   daily, and the README deploy section gets the crontab line.
+4. **Userdb AP ids are globally unique.** The network timeline filters with
+   `whereIn('ap_id', …)`; no `ap_key` column is needed.
+
+Not explicitly answered, so the plan follows the recommendation unless you say otherwise:
+
+5. **Default view per AP:** the grid stays the default; the timeline is reached through the
+   toggle.
+6. **Network timeline and `priv`:** public only by default, with an opt-in toggle
+   "včetně Dokumentace" for logged-in users.
+7. **Timezone:** keep `app.timezone` as `UTC` and store timeline dates as `Europe/Prague`
+   wall-clock time (section 3).
 
 ## 11. Phases and deliverables
 
@@ -319,7 +321,7 @@ Each phase is a separate commit, or PR, with its own tests, and is shippable on 
 | phase | scope | depends on |
 | --- | --- | --- |
 | 0 | Extract `<x-gallery.tile>` from `gallery/show.blade.php`; no behaviour change | — |
-| 1 | Migration, `GalleryImage` model and factory, `ImageDate`, `GalleryIndex`, upload/trash hooks, `gallery:index` command, README deploy step, CI `exif` extension | 0 |
+| 1 | Migration, `GalleryImage` model and factory, `ImageDate`, `GalleryIndex`, upload/trash hooks (including `client_modified_at` from the upload JS), `gallery:index` command and daily schedule, `ext-exif` in `composer.json`, README deploy and cron steps, CI `exif` extension | 0 |
 | 2 | Per-AP timeline: routes, controller actions, views and partial, month index, cursor pagination, `timeline.js`, grid/timeline toggle, lazy reconcile | 1 |
 | 3 | Network timeline: `/timeline`, visibility toggle, Userdb AP filter, header link | 2 |
 
