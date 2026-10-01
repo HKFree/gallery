@@ -1,78 +1,77 @@
-# Tutorial: exploring the timeline
+# Návod: seznámení s časovou osou
 
-In this tutorial you will browse one AP's photos month by month, jump back to an older month,
-and then look at the whole network's photos in one stream. It takes about five minutes and
-needs nothing but a browser. Signing in is only needed for the last step.
+V tomto návodu si projdete fotky jednoho AP měsíc po měsíci, skočíte zpět do staršího měsíce
+a pak si prohlédnete fotky celé sítě v jednom proudu. Zabere to asi pět minut a stačí
+prohlížeč. Přihlášení je potřeba jen v posledním kroku.
 
-## 1. Open an AP gallery
+## 1. Otevřete galerii AP
 
-On the home page (**Oblasti**), click any AP, for example **HK-Centrum**. You land in the
-familiar grid of photos, sorted by file name.
+Na úvodní stránce (**Oblasti**) klikněte na libovolný AP, například **HK-Centrum**. Ocitnete se
+v obvyklé mřížce fotek seřazených podle názvu souboru.
 
-![An AP gallery in grid view](images/ap-grid.png)
+![Galerie AP v zobrazení mřížky](images/ap-grid.png)
 
-At the top right is a switch with two options: **Mřížka** (Grid) and **Časová osa** (Timeline).
+Vpravo nahoře je přepínač se dvěma možnostmi: **Mřížka** a **Časová osa**.
 
-## 2. Switch to the timeline
+## 2. Přepněte na časovou osu
 
-Click **Časová osa**. The same photos are now grouped into months, newest month first:
+Klikněte na **Časová osa**. Tytéž fotky jsou teď seskupené po měsících, nejnovější měsíc je
+první:
 
-![The AP timeline](images/ap-timeline.png)
+![Časová osa AP](images/ap-timeline.png)
 
-Notice:
+Všimněte si:
 
-- Each month has a heading, such as **Červenec 2026**, followed by the number of photos in that
-  month.
-- The column on the right lists every month that has photos, grouped by year, with counts.
-  The month you are looking at is highlighted.
+- Každý měsíc má nadpis, například **Červenec 2026**, a za ním počet fotek v daném měsíci.
+- Sloupec vpravo vypisuje všechny měsíce, ve kterých jsou fotky, seskupené podle roku
+  i s počty. Měsíc, který si právě prohlížíte, je zvýrazněný.
 
-## 3. Scroll back in time
+## 3. Listujte zpět v čase
 
-Scroll down. Older months appear on their own as you approach the end of the page. Keep going
-for a while, then look at the address bar: it now ends with something like `?from=2025-03`,
-the month at the top of your screen.
+Posouvejte stránku dolů. Jakmile se přiblížíte ke konci, samy se načtou starší měsíce.
+Chvíli pokračujte a pak se podívejte do adresního řádku: končí teď něčím jako `?from=2025-03`,
+tedy měsícem, který je nahoře na obrazovce.
 
-![Scrolled back to March 2025](images/ap-timeline-scrolled.png)
+![Posunuto zpět na březen 2025](images/ap-timeline-scrolled.png)
 
-The heading of the current month stays pinned at the top while you scroll through it, and the
-month index follows along.
+Nadpis aktuálního měsíce zůstává při posouvání přichycený nahoře a přehled měsíců vpravo se
+posouvá s vámi.
 
-Reload the page. You come back to the same month instead of starting over from the newest
-photos.
+Obnovte stránku. Vrátíte se na stejný měsíc a nezačínáte znovu od nejnovějších fotek.
 
-## 4. Jump straight to a month
+## 4. Skočte rovnou na konkrétní měsíc
 
-In the month index on the right, click a month in an earlier year, for example **Leden** under
-**2025**. The page now starts at January 2025, and a **Novější** (Newer) link at the top takes
-you back to the newest photos.
+V přehledu měsíců vpravo klikněte na měsíc ve starším roce, například na **Leden** pod
+**2025**. Stránka teď začíná lednem 2025 a odkaz **Novější** nahoře vás vrátí
+k nejnovějším fotkám.
 
-On a phone the month index becomes a drop-down above the photos. Choosing a month there jumps
-to it the same way:
+Na telefonu se z přehledu měsíců stane rozbalovací seznam nad fotkami. Výběrem měsíce v něm
+skočíte stejně:
 
-| Timeline on a phone | After choosing January 2025 |
+| Časová osa na telefonu | Po výběru ledna 2025 |
 | --- | --- |
-| ![Timeline on a phone](images/mobile-ap-timeline.png) | ![After jumping to January 2025](images/mobile-jump.png) |
+| ![Časová osa na telefonu](images/mobile-ap-timeline.png) | ![Po skoku na leden 2025](images/mobile-jump.png) |
 
-## 5. See the whole network
+## 5. Prohlédněte si celou síť
 
-Click **Časová osa** in the page header. This timeline shows the photos of every AP in one
-stream. Under each photo is the name of its AP; click it to open that AP's timeline.
+V záhlaví stránky klikněte na **Časová osa**. Tato časová osa ukazuje fotky všech AP v jednom
+proudu. Pod každou fotkou je název jejího AP; kliknutím na něj otevřete časovou osu daného AP.
 
-![The network timeline](images/network-timeline.png)
+![Časová osa celé sítě](images/network-timeline.png)
 
-## 6. Include documentation photos (signed in)
+## 6. Zobrazte i fotky z dokumentace (po přihlášení)
 
-Sign in with **Přihlásit**. A **Zobrazit i Dokumentaci** button appears next to the heading.
-Click it, and photos from the private documentation galleries join the stream, marked with a
-lock icon. Click **Včetně Dokumentace** to hide them again.
+Přihlaste se tlačítkem **Přihlásit**. Vedle nadpisu se objeví tlačítko
+**Zobrazit i Dokumentaci**. Klikněte na něj a do proudu přibudou fotky ze soukromých galerií
+dokumentace, označené zámkem. Kliknutím na **Včetně Dokumentace** je opět skryjete.
 
-![The network timeline including documentation photos](images/network-timeline-docs.png)
+![Časová osa celé sítě včetně fotek z dokumentace](images/network-timeline-docs.png)
 
-## What you have learned
+## Co jste se naučili
 
-You switched an AP gallery between grid and timeline, scrolled back through its months,
-jumped to a specific month on desktop and phone, and browsed the network-wide timeline with and
-without documentation photos.
+Přepnuli jste galerii AP mezi mřížkou a časovou osou, prolistovali jste její měsíce zpět
+v čase, skočili jste na konkrétní měsíc na počítači i na telefonu a prošli jste časovou osu
+celé sítě s fotkami z dokumentace i bez nich.
 
-Next, see the [how-to guides](how-to.md) for specific tasks, or the
-[explanation](explanation.md) to learn how photos get their dates.
+Dál pokračujte [postupy](how-to.md) pro konkrétní úkoly, nebo si ve
+[vysvětlení](explanation.md) přečtěte, jak fotky získávají datum.

@@ -1,122 +1,122 @@
-# Explanation: how the timeline works
+# Vysvětlení: jak časová osa funguje
 
-## Why there is an index
+## Proč existuje index
 
-The gallery stores photos as plain files in one directory per AP gallery, and the grid view
-simply lists that directory. That is enough for one gallery sorted by name, but a timeline
-needs more:
+Galerie ukládá fotky jako obyčejné soubory, pro každou galerii AP do jednoho adresáře,
+a zobrazení mřížky prostě vypíše obsah tohoto adresáře. To stačí pro jednu galerii seřazenou
+podle názvu, ale časová osa potřebuje víc:
 
-- **It sorts by date, not name.** Reading the date means opening each file's EXIF data.
-  That's cheap for one photo but slow for thousands on every page view.
-- **The network timeline merges every gallery into one sorted stream** and pages through it.
-  Doing that from directories would mean scanning all of them on each request.
-- **The month index needs a count of photos per month.**
+- **Řadí podle data, ne podle názvu.** Zjistit datum znamená otevřít EXIF údaje každého
+  souboru. U jedné fotky je to levné, u tisíců při každém zobrazení stránky pomalé.
+- **Časová osa sítě slévá všechny galerie do jednoho seřazeného proudu** a stránkuje ho.
+  Z adresářů by to znamenalo při každém požadavku projít všechny.
+- **Přehled měsíců potřebuje počet fotek v každém měsíci.**
 
-So the timeline reads from a database table, `gallery_images`, that indexes the files. Each
-photo's dates are read once, when it is indexed, and stored.
+Časová osa proto čte z databázové tabulky `gallery_images`, která soubory indexuje. Data
+každé fotky se načtou jednou, při jejím zaindexování, a uloží se.
 
-The files remain the source of truth. The index only records what exists and when it was
-taken; it never decides whether a photo exists. The grid views still read the directories
-directly. If the index were ever wrong, the grid would still show every photo, and
-`gallery:index` rebuilds the index from the files.
+Zdrojem pravdy zůstávají soubory. Index jen zaznamenává, co existuje a kdy to bylo
+pořízeno; nikdy nerozhoduje o tom, zda fotka existuje. Zobrazení mřížky dál čtou přímo
+adresáře. Kdyby byl index někdy chybný, mřížka stejně ukáže všechny fotky a `gallery:index`
+index ze souborů znovu sestaví.
 
-## How the index stays correct
+## Jak index zůstává správný
 
-Most changes happen through the gallery itself, and those update the index immediately: an
-upload adds a row, and moving a photo to the trash removes it.
+Většina změn probíhá přes galerii samotnou a ty index aktualizují okamžitě: nahrání přidá
+záznam, přesun fotky do koše ho odebere.
 
-Files can also change behind the gallery's back: copied in by an administrator, restored from
-the trash by renaming, or deleted on the server. Three mechanisms catch those:
+Soubory se ale mohou měnit i mimo galerii: správce je nakopíruje, obnoví z koše
+přejmenováním nebo smaže přímo na serveru. Ty zachytí tři mechanismy:
 
-1. **Opening an AP's timeline** compares that gallery's directory with its rows, adds what's
-   missing and drops what's gone. It adds at most 200 photos per page load, so the first visit
-   to a large, never-indexed gallery stays fast.
-2. **A daily `gallery:index` run** does the same for every gallery.
-3. **Running `gallery:index` by hand** applies changes immediately.
+1. **Otevření časové osy AP** porovná adresář galerie s jejími záznamy, doplní chybějící
+   a odebere zaniklé. Při jednom načtení stránky přidá nejvýše 200 fotek, takže první
+   návštěva velké, dosud neindexované galerie zůstane rychlá.
+2. **Denní běh `gallery:index`** udělá totéž pro všechny galerie.
+3. **Ruční spuštění `gallery:index`** promítne změny okamžitě.
 
-The network timeline doesn't reconcile on page load: checking every directory on each request
-is exactly the cost the index exists to avoid. Changes made directly on disk therefore reach
-it after at most a day, unless an administrator runs the command.
+Časová osa sítě se při načtení stránky nesrovnává: procházet při každém požadavku všechny
+adresáře je přesně ta zátěž, které má index zabránit. Změny provedené přímo na disku se do ní
+proto dostanou nejpozději za den, pokud správce nespustí příkaz ručně.
 
-When an upload finishes, the file is written first and the row second. If writing the row
-fails, the photo is still safely stored and visible in the grid, and the next reconcile adds
-it. The opposite order could leave rows pointing to files that don't exist.
+Na konci nahrání se nejdřív zapíše soubor a teprve potom záznam. Pokud se zápis záznamu
+nepovede, fotka je přesto bezpečně uložená a vidět v mřížce a příští srovnání ji doplní.
+Opačné pořadí by mohlo nechat záznamy odkazující na neexistující soubory.
 
-## How a photo gets its date
+## Jak fotka získá datum
 
-The most useful date is when the photo was **taken**. Cameras and phones record it in the
-photo's EXIF data as `DateTimeOriginal`. That value is often missing, though, because messaging
-apps, screenshots and many editors strip metadata. So the gallery falls back step by step:
+Nejužitečnější je datum, kdy byla fotka **pořízena**. Fotoaparáty a telefony ho zapisují do
+EXIF údajů fotky jako `DateTimeOriginal`. Často ale chybí, protože chatovací aplikace, snímky
+obrazovky a mnohé editory metadata odstraňují. Galerie proto postupuje krok za krokem:
 
-1. **EXIF taken date.** The gallery ignores the EXIF `DateTime` field, because despite its name
-   it records when the file was last edited.
-2. **The file's modification date as the uploader's browser reports it.** For files copied
-   straight off a phone or camera this is often the capture time. For downloaded files it's the
-   download time, which is still no worse than the next option.
-3. **The upload time** (the stored file's modification time).
+1. **Datum pořízení z EXIF.** Pole `DateTime` v EXIF galerie ignoruje, protože navzdory
+   názvu zaznamenává, kdy byl soubor naposledy upraven.
+2. **Datum poslední změny souboru, jak ho nahlásí prohlížeč toho, kdo fotku nahrává.**
+   U souborů zkopírovaných přímo z telefonu nebo fotoaparátu je to často čas pořízení.
+   U stažených souborů je to čas stažení, což stále není horší než další možnost.
+3. **Čas nahrání** (čas změny uloženého souboru).
 
-Dates that can't be real are skipped and the next source is tried:
+Data, která nemohou být skutečná, se přeskočí a zkusí se další zdroj:
 
-- anything before 1990, which is typically a camera whose clock was never set and reports 1970
-  or 2000
-- anything in the future
-- placeholder values such as `0000:00:00 00:00:00`
+- cokoli před rokem 1990, typicky fotoaparát, kterému nikdo nenastavil hodiny, a hlásí rok 1970
+  nebo 2000
+- cokoli v budoucnosti
+- zástupné hodnoty jako `0000:00:00 00:00:00`
 
-The date is read once, when the photo is indexed. That keeps pages fast, but it means a wrong
-date isn't corrected by re-indexing: the fix is to re-upload a file that carries the right
-date (see the [how-to guide](how-to.md#fix-a-photo-that-appears-in-the-wrong-month)).
+Datum se načte jednou, při zaindexování fotky. Stránky jsou díky tomu rychlé, ale znamená to,
+že chybné datum opětovné indexování neopraví: řešením je znovu nahrát soubor, který nese
+správné datum (viz [postup](how-to.md#opravit-fotku-která-je-ve-špatném-měsíci)).
 
-### A risk when photos were copied onto the server
+### Riziko u fotek nakopírovaných na server
 
-For photos that were already on the server before the timeline existed, only sources 1 and 3
-are available. If those files were once copied without preserving their modification times,
-every photo without EXIF carries the date of that copy and lands in the same month. The
-`--dry-run` month distribution exists to spot this before building the index.
+U fotek, které byly na serveru už před zavedením časové osy, jsou k dispozici jen zdroje
+1 a 3. Pokud se tyto soubory někdy kopírovaly bez zachování času změny, nese každá fotka bez
+EXIF datum tohoto kopírování a všechny skončí ve stejném měsíci. Rozložení po měsících při
+`--dry-run` slouží k tomu, abyste to odhalili dřív, než index vytvoříte.
 
-## Why dates are local time
+## Proč se data ukládají v místním čase
 
-EXIF dates have no timezone: a camera records the clock on its display, such as
-`2024:05:17 10:20:30`. Timestamps such as file times are absolute moments, usually handled in
-UTC. Mixing the two would misorder photos by an hour or two, and it would put a photo uploaded
-just after midnight on the 1st of a month (Prague time) into the previous month.
+Data v EXIF nemají časové pásmo: fotoaparát zapíše to, co ukazují jeho hodiny, například
+`2024:05:17 10:20:30`. Časové značky jako časy souborů jsou naproti tomu absolutní okamžiky,
+obvykle v UTC. Smíchání obojího by fotky seřadilo s chybou hodiny či dvou a fotku nahranou
+těsně po půlnoci prvního dne v měsíci (pražského času) by zařadilo do předchozího měsíce.
 
-So the gallery stores every timeline date as **wall-clock time in one timezone**,
-`GALLERY_TIMEZONE` (Europe/Prague by default). EXIF dates are kept exactly as recorded, and
-timestamps are converted into that timezone. Months are then simply the year and month of that
-wall-clock time.
+Galerie proto ukládá všechna data časové osy jako **místní čas v jednom časovém pásmu**,
+`GALLERY_TIMEZONE` (výchozí Europe/Prague). Data z EXIF zůstávají přesně tak, jak byla
+zapsána, a časové značky se do tohoto pásma převedou. Měsíc je pak prostě rok a měsíc tohoto
+místního času.
 
-The application itself keeps running in UTC. Only the timeline dates use local time, so
-nothing else in the database changes meaning.
+Aplikace jako celek dál běží v UTC. Místní čas používají jen data časové osy, takže nic
+jiného v databázi nemění význam.
 
-## Privacy
+## Soukromí
 
-Documentation photos are only for signed-in users. On the network timeline:
+Fotky z dokumentace jsou jen pro přihlášené uživatele. Na časové ose sítě platí:
 
-- Guests always get public photos only. The `priv=1` parameter is ignored unless you are signed
-  in, and the query filters on it, so a guest never receives documentation photos, not even
-  their file names.
-- Signed-in users see documentation photos only when they ask for them. They are technical
-  photos and would otherwise crowd out everything else.
-- Even if a documentation photo's address leaked, opening it still requires signing in.
+- Nepřihlášení vždy dostanou jen veřejné fotky. Parametr `priv=1` se bez přihlášení ignoruje
+  a filtruje se přímo v databázovém dotazu, takže nepřihlášený nikdy nedostane fotky
+  z dokumentace, dokonce ani jejich názvy souborů.
+- Přihlášení vidí fotky z dokumentace, jen když o ně požádají. Jsou to technické fotky,
+  které by jinak zaplavily všechno ostatní.
+- I kdyby adresa fotky z dokumentace unikla, její otevření stále vyžaduje přihlášení.
 
-Photos of APs that no longer exist in Userdb are left out of the network timeline, because
-their gallery pages would return "not found".
+Fotky AP, které už v Userdb neexistují, se na časové ose sítě nezobrazují, protože stránky
+jejich galerií by vrátily „nenalezeno“.
 
-The timeline makes older photos easier to find. Public originals are served unmodified,
-including any GPS position a phone stored in them. That was already true before the timeline,
-but keep it in mind when uploading public photos.
+Časová osa usnadňuje hledání starších fotek. Veřejné originály se posílají beze změny,
+včetně polohy GPS, kterou do nich případně uložil telefon. Platilo to už před zavedením
+časové osy, ale při nahrávání veřejných fotek na to pamatujte.
 
-## Scrolling and the address bar
+## Posouvání a adresní řádek
 
-The timeline loads 60 photos at a time. A busy month, such as a day of installation work, can
-easily hold more than that, so pages are cut by photo count rather than by month. When the
-next page continues a month that is already on screen, its photos are added to the existing
-section, so every month appears as one block with one heading. The count in each heading is
-the month's total, not the number loaded so far.
+Časová osa načítá 60 fotek najednou. Rušný měsíc, například den montážních prací, jich
+snadno může mít víc, proto se stránky dělí podle počtu fotek, ne podle měsíců. Když další
+stránka pokračuje měsícem, který už je na obrazovce, přidají se její fotky do existující
+sekce, takže každý měsíc se zobrazí jako jeden blok s jedním nadpisem. Počet v nadpisu je
+celkový počet fotek v měsíci, ne počet dosud načtených.
 
-As you scroll, the address bar is updated with `?from=` and the month at the top of the
-screen, without adding history entries. Reloading, or going back to the page later, therefore
-returns to roughly the same point in time.
+Při posouvání se do adresního řádku zapisuje `?from=` s měsícem, který je nahoře na
+obrazovce, aniž by přibývaly položky historie. Po obnovení stránky nebo pozdějším návratu
+na ni se tak vrátíte zhruba na stejné místo v čase.
 
-Without JavaScript, everything still works through plain links: **Starší** loads the next page,
-the month index jumps, and **Novější** returns to the newest photos.
+Bez JavaScriptu vše funguje přes obyčejné odkazy: **Starší** načte další stránku, přehled
+měsíců umožňuje skákat a **Novější** vrací k nejnovějším fotkám.

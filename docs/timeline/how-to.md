@@ -1,157 +1,155 @@
-# How-to guides
+# Postupy
 
-Task-focused recipes. Each assumes you already know your way around the gallery. If you don't,
-start with the [tutorial](tutorial.md).
+Návody zaměřené na konkrétní úkoly. Předpokládají, že se v galerii už vyznáte. Pokud ne,
+začněte [návodem](tutorial.md).
 
-**For everyone**
+**Pro všechny**
 
-- [Share a link to a particular month](#share-a-link-to-a-particular-month)
-- [Show documentation photos in the network timeline](#show-documentation-photos-in-the-network-timeline)
+- [Sdílet odkaz na konkrétní měsíc](#sdílet-odkaz-na-konkrétní-měsíc)
+- [Zobrazit fotky z dokumentace na časové ose sítě](#zobrazit-fotky-z-dokumentace-na-časové-ose-sítě)
 
-**For gallery managers**
+**Pro správce galerií**
 
-- [Upload photos so they land in the right month](#upload-photos-so-they-land-in-the-right-month)
-- [Fix a photo that appears in the wrong month](#fix-a-photo-that-appears-in-the-wrong-month)
+- [Nahrát fotky tak, aby se zařadily do správného měsíce](#nahrát-fotky-tak-aby-se-zařadily-do-správného-měsíce)
+- [Opravit fotku, která je ve špatném měsíci](#opravit-fotku-která-je-ve-špatném-měsíci)
 
-**For server administrators**
+**Pro správce serveru**
 
-- [Build the timeline index on an existing installation](#build-the-timeline-index-on-an-existing-installation)
-- [Keep the index in sync automatically](#keep-the-index-in-sync-automatically)
-- [Make photos copied onto the server appear right away](#make-photos-copied-onto-the-server-appear-right-away)
-- [Change the timezone used for months](#change-the-timezone-used-for-months)
+- [Vytvořit index časové osy na existující instalaci](#vytvořit-index-časové-osy-na-existující-instalaci)
+- [Udržovat index automaticky aktuální](#udržovat-index-automaticky-aktuální)
+- [Zobrazit hned fotky nakopírované na server](#zobrazit-hned-fotky-nakopírované-na-server)
+- [Změnit časové pásmo pro určování měsíců](#změnit-časové-pásmo-pro-určování-měsíců)
 
 ---
 
-## Share a link to a particular month
+## Sdílet odkaz na konkrétní měsíc
 
-1. Open the timeline (an AP's **Časová osa**, or **Časová osa** in the header).
-2. Click the month in the month index, or scroll to it.
-3. Copy the address from the address bar. It ends with `?from=YYYY-MM`, for example
-   `?from=2025-03`.
+1. Otevřete časovou osu (**Časová osa** u AP, nebo **Časová osa** v záhlaví).
+2. Klikněte na měsíc v přehledu měsíců, nebo se k němu doposouvejte.
+3. Zkopírujte adresu z adresního řádku. Končí na `?from=RRRR-MM`, například `?from=2025-03`.
 
-Whoever opens the link starts at that month and can scroll further back from there.
+Kdo odkaz otevře, začne na tomto měsíci a může odtud listovat dál do minulosti.
 
-## Show documentation photos in the network timeline
+## Zobrazit fotky z dokumentace na časové ose sítě
 
-Documentation ("Dokumentace") photos are only visible to signed-in users.
+Fotky z dokumentace vidí jen přihlášení uživatelé.
 
-1. Sign in with **Přihlásit**.
-2. Open **Časová osa** in the header.
-3. Click **Zobrazit i Dokumentaci**. Documentation photos appear with a lock icon.
+1. Přihlaste se tlačítkem **Přihlásit**.
+2. V záhlaví otevřete **Časová osa**.
+3. Klikněte na **Zobrazit i Dokumentaci**. Fotky z dokumentace se objeví se zámkem.
 
-The choice is kept while you scroll and in links you copy (the address contains `priv=1`).
-Click **Včetně Dokumentace** to go back to public photos only.
+Volba zůstává zachovaná při posouvání i v odkazech, které zkopírujete (adresa obsahuje
+`priv=1`). Kliknutím na **Včetně Dokumentace** se vrátíte jen k veřejným fotkám.
 
-## Upload photos so they land in the right month
+## Nahrát fotky tak, aby se zařadily do správného měsíce
 
-A photo is placed in the month it was **taken**, which the gallery reads from the photo's EXIF
-data. To keep that information:
+Fotka se zařadí do měsíce, kdy byla **pořízena**. Galerie toto datum čte z EXIF údajů fotky.
+Aby se zachovalo:
 
-1. Upload the **original files** from the camera or phone: drag them onto the dropzone, or click
-   it to choose them.
-2. Avoid uploading copies saved from messaging apps (WhatsApp, Messenger, Signal), screenshots,
-   or files exported by editors that strip metadata. They usually have no taken date.
+1. Nahrávejte **původní soubory** z fotoaparátu nebo telefonu: přetáhněte je do oblasti pro
+   nahrávání, nebo na ni klikněte a vyberte je.
+2. Nenahrávejte kopie uložené z chatovacích aplikací (WhatsApp, Messenger, Signal), snímky
+   obrazovky ani soubory exportované z editorů, které metadata odstraňují. Datum pořízení
+   obvykle nemají.
 
-If a photo has no taken date, the gallery uses the file's last-modified date as reported by
-your browser, and failing that, the upload time. See
-[how photos get their date](explanation.md#how-a-photo-gets-its-date).
+Pokud fotka datum pořízení nemá, galerie použije datum poslední změny souboru, jak ho
+nahlásí váš prohlížeč, a když chybí i to, čas nahrání. Viz
+[jak fotka získá datum](explanation.md#jak-fotka-získá-datum).
 
-## Fix a photo that appears in the wrong month
+## Opravit fotku, která je ve špatném měsíci
 
-There is no way to edit a photo's date in the gallery. The date is read once, when the photo is
-indexed. To correct it:
+Datum fotky v galerii upravit nejde. Načte se jednou, při zařazení fotky do indexu. Oprava:
 
-1. Find the original file with the correct EXIF date (from the camera or phone).
-2. In the AP gallery, hover over the wrong photo and click the trash icon to move it to the
-   trash.
-3. Upload the original file.
+1. Najděte původní soubor se správným datem v EXIF (z fotoaparátu nebo telefonu).
+2. V galerii AP najeďte myší na chybnou fotku a ikonou koše ji přesuňte do koše.
+3. Nahrajte původní soubor.
 
-If no original with a taken date exists, set the file's modification time on your computer to
-the right date before uploading. Your browser reports it, and the gallery uses it as the
-fallback date.
+Pokud originál s datem pořízení neexistuje, nastavte před nahráním na svém počítači
+souboru čas poslední změny na správné datum. Prohlížeč ho nahlásí a galerie ho použije jako
+náhradní datum.
 
-## Build the timeline index on an existing installation
+## Vytvořit index časové osy na existující instalaci
 
-When you deploy the timeline to a server that already has photos, index them once:
+Když nasazujete časovou osu na server, kde už fotky jsou, zaindexujte je jednorázově:
 
-1. Run the migrations:
+1. Spusťte migrace:
 
    ```bash
    php artisan migrate --force
    ```
 
-2. Do a dry run and check the month distribution it prints:
+2. Udělejte zkušební běh a zkontrolujte rozložení po měsících, které vypíše:
 
    ```bash
    sudo -u www-data php artisan gallery:index --dry-run
    ```
 
-   If most photos land in a single recent month, their files lost their original
-   modification times when they were copied, for example with `cp` without `-p`. Photos without
-   EXIF would all be dated to that copy. If you still have the source, re-copy it preserving
-   times (`rsync -t` or `cp -p`) before continuing.
+   Pokud většina fotek připadne na jeden nedávný měsíc, jejich soubory při kopírování přišly
+   o původní čas změny, například při `cp` bez `-p`. Fotky bez EXIF by pak všechny dostaly
+   datum tohoto kopírování. Pokud máte zdroj, nakopírujte ho znovu se zachováním časů
+   (`rsync -t` nebo `cp -p`) a teprve pak pokračujte.
 
-3. Build the index:
+3. Vytvořte index:
 
    ```bash
    sudo -u www-data php artisan gallery:index
    ```
 
-To try it on part of the data first, add `--area=<id>` or `--ap=<id>`.
+Chcete-li to nejdřív vyzkoušet jen na části dat, přidejte `--area=<id>` nebo `--ap=<id>`.
 
-## Keep the index in sync automatically
+## Udržovat index automaticky aktuální
 
-Uploads and deletions update the index immediately. To also pick up changes made directly on
-disk, run Laravel's scheduler, which runs `gallery:index` once a day:
+Nahrání a smazání fotky aktualizuje index okamžitě. Aby se zachytily i změny provedené
+přímo na disku, spusťte plánovač Laravelu, který jednou denně spustí `gallery:index`:
 
-1. Open the crontab of the web server user:
+1. Otevřete crontab uživatele webového serveru:
 
    ```bash
    sudo crontab -u www-data -e
    ```
 
-2. Add:
+2. Přidejte:
 
    ```cron
    * * * * * cd /home/<user>/websites/hkfree-gallery && php artisan schedule:run >> /dev/null 2>&1
    ```
 
-3. Check that the task is registered:
+3. Ověřte, že je úloha zaregistrovaná:
 
    ```bash
    sudo -u www-data php artisan schedule:list
    ```
 
-Run the scheduler as `www-data` so the log and database files it creates stay writable for
-Apache.
+Plánovač spouštějte jako `www-data`, aby logy a databázové soubory, které vytvoří, zůstaly
+zapisovatelné pro Apache.
 
-## Make photos copied onto the server appear right away
+## Zobrazit hned fotky nakopírované na server
 
-After copying photos into a gallery directory, or restoring a file from the trash by renaming
-it:
+Po nakopírování fotek do adresáře galerie nebo po obnovení souboru z koše přejmenováním:
 
-- **For the AP's own timeline,** nothing is needed. Opening it indexes new files, up to 200 per
-  page load; a yellow notice (**Probíhá indexace…**) tells you when more are waiting. Reload
-  until it disappears.
-- **For the network timeline,** run:
+- **Na časové ose daného AP** není potřeba nic dělat. Její otevření zaindexuje nové soubory,
+  nejvýše 200 při jednom načtení stránky; žluté upozornění (**Probíhá indexace…**) dá vědět,
+  když další čekají. Obnovujte stránku, dokud nezmizí.
+- **Na časové ose sítě** spusťte:
 
   ```bash
-  sudo -u www-data php artisan gallery:index --ap=<ap id>
+  sudo -u www-data php artisan gallery:index --ap=<id AP>
   ```
 
-  Otherwise the photos appear after the next daily run.
+  Jinak se fotky objeví po příštím denním běhu.
 
-## Change the timezone used for months
+## Změnit časové pásmo pro určování měsíců
 
-Photos are placed in months by Europe/Prague local time. To use another timezone:
+Fotky se do měsíců řadí podle místního času Europe/Prague. Pro jiné časové pásmo:
 
-1. Set it in `.env`:
+1. Nastavte ho v `.env`:
 
    ```dotenv
    GALLERY_TIMEZONE=Europe/Bratislava
    ```
 
-2. Refresh the configuration cache: `php artisan config:cache`.
+2. Obnovte mezipaměť konfigurace: `php artisan config:cache`.
 
-This affects photos indexed from now on. Existing rows keep their dates. Before re-indexing
-everything, read [why dates are stored as local time](explanation.md#why-dates-are-local-time).
+Změna platí pro fotky indexované od této chvíle. Existující záznamy si svá data ponechají.
+Než budete vše indexovat znovu, přečtěte si,
+[proč se data ukládají v místním čase](explanation.md#proč-se-data-ukládají-v-místním-čase).
