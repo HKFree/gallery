@@ -78,10 +78,20 @@ Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
         ->whereNumber(['area', 'ap'])
         ->name('gallery.description');
 
-    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/scene-queue', [DescriptionController::class, 'sceneQueue'])
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/analysis-queue', [DescriptionController::class, 'analysisQueue'])
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
-        ->name('gallery.scene-queue');
+        ->name('gallery.analysis-queue');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/embedding', [DescriptionController::class, 'storeEmbedding'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.embedding');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/suggestions', [DescriptionController::class, 'confirmSuggestions'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.suggestions.confirm');
 
     Route::get('/gal/area/{area}/ap/{ap}/{visibility}/import', [ConfluenceImportController::class, 'create'])
         ->whereIn('visibility', ['pub', 'priv'])

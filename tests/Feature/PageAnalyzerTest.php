@@ -77,10 +77,11 @@ it('takes embedded images in page order, once each', function () {
         .'<ac:image><ri:attachment ri:filename="a.jpg"/></ac:image>'
         .'<ac:image><ri:attachment ri:filename="z.jpg"/></ac:image>';
 
-    $analysis = analyzePage($body, [attachment('a.jpg'), attachment('z.jpg'), attachment('unused.jpg')]);
+    $analysis = analyzePage($body, [attachment('a.jpg'), attachment('z.jpg')]);
 
     expect(photoNames($analysis))->toBe(['z.jpg', 'a.jpg'])
-        ->and($analysis->skipped)->toBe([]);
+        ->and($analysis->skipped)->toBe([])
+        ->and($analysis->attachedOnly)->toBe(0);
 });
 
 it('skips images of other pages, external images and missing attachments, with reasons', function () {
@@ -122,8 +123,19 @@ it('skips images the gallery cannot store', function () {
         ]);
 });
 
+it('adds image attachments the page does not show, after the shown ones', function () {
+    $body = '<ac:image><ri:attachment ri:filename="shown.jpg"/></ac:image>';
+
+    $analysis = analyzePage($body, [
+        attachment('Pohled směr Jih'), attachment('shown.jpg'), attachment('Pohled směr Jih v zimě'), attachment('notes.pdf', 'application/pdf'),
+    ]);
+
+    expect(photoNames($analysis))->toBe(['shown.jpg', 'Pohled směr Jih', 'Pohled směr Jih v zimě'])
+        ->and($analysis->attachedOnly)->toBe(2);
+});
+
 it('finds nothing on an index page and reports an unreadable body', function () {
-    expect(analyzePage('<p><ac:link><ri:page ri:content-title="vyhledy_2026"/></ac:link></p>', [attachment('a.jpg')]))
+    expect(analyzePage('<p><ac:link><ri:page ri:content-title="vyhledy_2026"/></ac:link></p>', []))
         ->photos->toBe([])
         ->skipped->toBe([]);
 

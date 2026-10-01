@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GalleryImageEmbedding;
+use App\Services\DirectionSuggestions;
 use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
 use App\Services\GalleryStorage;
@@ -28,6 +30,7 @@ class GalleryController extends Controller
         private readonly GalleryStorage $storage,
         private readonly GalleryIndex $index,
         private readonly GalleryDescriptions $descriptions,
+        private readonly DirectionSuggestions $suggestions,
     ) {}
 
     public function showPublic(int $area, int $ap): View
@@ -114,6 +117,7 @@ class GalleryController extends Controller
         $this->storage->trash($visibility, $area, $ap, $filename);
         $this->index->forget($visibility, $area, $ap, $filename);
         $this->descriptions->forget($visibility, $area, $ap, $filename);
+        GalleryImageEmbedding::query()->where(['visibility' => $visibility, 'area_id' => $area, 'ap_id' => $ap, 'filename' => basename($filename)])->delete();
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);
@@ -125,13 +129,16 @@ class GalleryController extends Controller
     private function showGallery(string $visibility, int $areaId, int $apId): View
     {
         $ap = $this->resolveAp($areaId, $apId);
+        $canManage = Gate::allows('manage-gallery');
+        $images = $this->images($visibility, $areaId, $apId, withSuggestions: $canManage);
 
         return view('gallery.show', [
             'visibility' => $visibility,
             'area' => $ap['area'],
             'ap' => $ap,
-            'images' => $this->images($visibility, $areaId, $apId),
-            'canManage' => Gate::allows('manage-gallery'),
+            'images' => $images,
+            'canManage' => $canManage,
+            'suggestionCount' => count(array_filter(array_column($images, 'suggestion'))),
         ]);
     }
 
@@ -152,16 +159,20 @@ class GalleryController extends Controller
     /**
      * Build the image view-model. All images stream through the controller.
      *
-     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string, description: string|null}>
+     * Direction suggestions are only worked out for managers, who can confirm them.
+     *
+     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string, description_url: string, description: string|null, suggestion: array{heading: int, from: string, similarity: float}|null}>
      */
-    private function images(string $visibility, int $areaId, int $apId): array
+    private function images(string $visibility, int $areaId, int $apId, bool $withSuggestions = false): array
     {
         $names = $this->storage->imageNames($visibility, $areaId, $apId);
         $descriptions = $this->descriptions->texts($visibility, $areaId, $apId, $names);
+        $suggestions = $withSuggestions ? $this->suggestions->forGallery($visibility, $areaId, $apId, $names) : [];
 
         return array_map(fn (string $name): array => [
             ...GalleryLinks::image($visibility, $areaId, $apId, $name),
             'description' => $descriptions[$name] ?? null,
+            'suggestion' => $suggestions[$name] ?? null,
         ], $names);
     }
 

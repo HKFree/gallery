@@ -66,13 +66,14 @@ class GalleryDescriptions
     }
 
     /**
-     * Set (or, with null, clear) the view direction by hand.
+     * Set (or, with null, clear) the view direction, by hand (`manual`) or by confirming a
+     * suggestion from a similar photo (`similarity`).
      */
-    public function setHeading(string $visibility, int $areaId, int $apId, string $filename, ?int $heading, User $user): GalleryImageDescription
+    public function setHeading(string $visibility, int $areaId, int $apId, string $filename, ?int $heading, User $user, string $source = 'manual'): GalleryImageDescription
     {
         return GalleryImageDescription::updateOrCreate($this->key($visibility, $areaId, $apId, $filename), [
             'heading' => $heading,
-            'heading_source' => $heading === null ? null : 'manual',
+            'heading_source' => $heading === null ? null : $source,
             'edited_by' => $user->id,
         ]);
     }

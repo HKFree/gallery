@@ -14,6 +14,7 @@ it('extracts the page id from supported URLs on the configured host', function (
     'page URL' => ['https://doc.hkfree.org/spaces/fotogalerie/pages/22020482/Foto+v%C3%BDhled', 22020482],
     'page URL without title' => ['https://doc.hkfree.org/spaces/fotogalerie/pages/22020482', 22020482],
     'viewpage' => ['https://doc.hkfree.org/pages/viewpage.action?pageId=26804382', 26804382],
+    'blog post' => ['https://doc.hkfree.org/spaces/fotogalerie/blog/2012/08/12/36306945/V%C3%BDhledy+z+AP+Kun%C4%8Dice', 36306945],
     'display (looked up)' => ['https://doc.hkfree.org/display/fotogalerie/Foto+v%C3%BDhled', 777],
     'other host' => ['https://evil.example.org/spaces/fotogalerie/pages/22020482/x', null],
     'look-alike host' => ['https://doc.hkfree.org.evil.example/spaces/x/pages/1/x', null],
@@ -93,4 +94,16 @@ it('sends the access token only when one is configured', function () {
     config(['services.confluence.token' => 'secret-token']);
     app(ConfluenceClient::class)->page(22020482);
     Http::assertSent(fn (Request $request) => $request->header('Authorization') === ['Bearer secret-token']);
+});
+
+it('reads blog posts like pages, but not other content', function () {
+    $page = json_decode(file_get_contents(base_path('tests/Fixtures/confluence/page-22020482.json')), true);
+
+    Http::fake([
+        'doc.hkfree.org/rest/api/content/7*' => Http::response([...$page, 'id' => '7', 'type' => 'blogpost']),
+        'doc.hkfree.org/rest/api/content/8*' => Http::response([...$page, 'id' => '8', 'type' => 'attachment']),
+    ]);
+
+    expect(app(ConfluenceClient::class)->page(7)->id)->toBe(7)
+        ->and(fn () => app(ConfluenceClient::class)->page(8))->toThrow(ConfluenceException::class, 'Adresa nevede na stránku Confluence.');
 });

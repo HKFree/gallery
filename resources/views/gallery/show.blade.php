@@ -6,7 +6,7 @@
     <x-gallery.header :area="$area" :ap="$ap" :visibility="$visibility" mode="grid" />
 
     @if ($canManage)
-        <x-gallery.dropzone :area="$area" :ap="$ap" :visibility="$visibility" />
+        <x-gallery.dropzone :area="$area" :ap="$ap" :visibility="$visibility" :suggestion-count="$suggestionCount" />
     @endif
 
     @if (count($images) === 0)

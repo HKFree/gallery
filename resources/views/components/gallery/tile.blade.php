@@ -45,6 +45,18 @@
     @else
         <figcaption class="truncate px-2 py-1 text-xs text-gray-500" title="{{ $image['name'] }}">{{ $image['name'] }}</figcaption>
     @endisset
+    @if ($canManage && ($image['suggestion'] ?? null))
+        @php($suggested = $image['suggestion']['heading'])
+        <form method="POST" action="{{ $image['description_url'] }}" data-heading-form data-suggestion
+              title="Podle podobné fotky {{ $image['suggestion']['from'] }}"
+              class="flex flex-wrap items-center gap-x-2 px-2 pb-1.5 text-xs text-amber-800">
+            @csrf
+            <input type="hidden" name="filename" value="{{ $image['name'] }}">
+            <input type="hidden" name="source" value="similarity">
+            <span>Návrh: {{ \App\Support\Compass::point($suggested) }} ({{ $suggested }}°)</span>
+            <button type="submit" name="heading" value="{{ $suggested }}" class="cursor-pointer font-medium underline hover:text-amber-900">Potvrdit</button>
+        </form>
+    @endif
     @isset($image['description'])
         <p data-description class="line-clamp-2 px-2 pb-1.5 text-xs leading-snug text-gray-600">{{ $image['description'] }}</p>
     @endisset

@@ -81,7 +81,7 @@
             @if ($counts['imported'] > 0)
                 <p class="mt-4 text-sm text-gray-600">
                     Volitelně:
-                    <x-gallery.scene-tagging :area="$area" :ap="$ap" :visibility="$visibility" :import="$import->id" />
+                    <x-gallery.photo-analysis :area="$area" :ap="$ap" :visibility="$visibility" :import="$import->id" />
                 </p>
             @endif
         @endunless

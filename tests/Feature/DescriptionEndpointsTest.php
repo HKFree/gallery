@@ -4,7 +4,9 @@ use App\Enums\Scene;
 use App\Models\ConfluenceImport;
 use App\Models\ConfluenceImportItem;
 use App\Models\GalleryImageDescription;
+use App\Models\GalleryImageEmbedding;
 use App\Models\User;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -79,15 +81,20 @@ it('is for managers only', function () {
         ->assertForbidden();
 });
 
-it('lists photos without a scene type for recognition, optionally per import', function () {
+it('lists photos that still need analysing, optionally per import', function () {
     GalleryImageDescription::factory()->create(['filename' => 'a.jpg', 'scene' => Scene::Les, 'scene_score' => 0.8]);
     $admin = User::factory()->admin()->create();
     $queue = fn (array $query = []) => $this->actingAs($admin)
-        ->getJson(route('gallery.scene-queue', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, ...$query]))
+        ->getJson(route('gallery.analysis-queue', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, ...$query]))
         ->assertOk()
-        ->json('*.filename');
+        ->json();
 
-    expect($queue())->toBe(['b.jpg']);
+    GalleryImageEmbedding::factory()->create(['filename' => 'b.jpg']);
+
+    expect(collect($queue())->map(fn (array $photo) => Arr::only($photo, ['filename', 'scene', 'embedding']))->all())->toBe([
+        ['filename' => 'a.jpg', 'scene' => false, 'embedding' => true],
+        ['filename' => 'b.jpg', 'scene' => true, 'embedding' => false],
+    ]);
 
     $import = ConfluenceImport::factory()->done()->create();
     ConfluenceImportItem::factory()->imported()->for($import, 'import')->create(['original_filename' => 'a.jpg']);
@@ -95,17 +102,17 @@ it('lists photos without a scene type for recognition, optionally per import', f
 
     $other = ConfluenceImport::factory()->done()->create(['ap_id' => 202]);
     $this->actingAs($admin)
-        ->getJson(route('gallery.scene-queue', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'import' => $other->id]))
+        ->getJson(route('gallery.analysis-queue', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'import' => $other->id]))
         ->assertNotFound();
 });
 
 it('shows the compass and scene recognition to managers only', function () {
     $url = route('gallery.public', ['area' => 13, 'ap' => 201]);
 
-    $this->get($url)->assertDontSee('data-heading-form', escape: false)->assertDontSee('data-scene-tagging', escape: false);
+    $this->get($url)->assertDontSee('data-heading-form', escape: false)->assertDontSee('data-photo-analysis', escape: false);
 
     $this->actingAs(User::factory()->admin()->create())->get($url)
         ->assertSee('data-heading-form', escape: false)
-        ->assertSee('data-scene-tagging', escape: false)
+        ->assertSee('data-photo-analysis', escape: false)
         ->assertSee('Nastavit směr pohledu');
 });

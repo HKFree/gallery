@@ -1,4 +1,4 @@
-@props(['area', 'ap', 'visibility'])
+@props(['area', 'ap', 'visibility', 'suggestionCount' => 0])
 <div class="mb-6">
     <div data-dropzone
          data-upload-url="{{ route('gallery.upload', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
@@ -16,7 +16,13 @@
         </div>
     </div>
     <p class="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-1 text-sm">
-        <x-gallery.scene-tagging :area="$area" :ap="$ap" :visibility="$visibility" />
+        @if ($suggestionCount > 0)
+            <form method="POST" action="{{ route('gallery.suggestions.confirm', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}" class="inline">
+                @csrf
+                <button type="submit" class="cursor-pointer font-medium text-amber-800 hover:text-amber-900">Potvrdit návrhy směru ({{ $suggestionCount }})</button>
+            </form>
+        @endif
+        <x-gallery.photo-analysis :area="$area" :ap="$ap" :visibility="$visibility" />
         <a href="{{ route('confluence.import.create', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
            class="font-medium text-emerald-700 hover:text-emerald-800">Import z Confluence</a>
     </p>

@@ -72,7 +72,12 @@
             @else
                 <dl class="mb-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:max-w-sm">
                     <dt class="text-gray-500">Fotek</dt>
-                    <dd class="font-medium">{{ count($analysis->photos) }}</dd>
+                    <dd class="font-medium">
+                        {{ count($analysis->photos) }}
+                        @if ($analysis->attachedOnly > 0)
+                            <span class="font-normal text-gray-500">(z toho {{ $analysis->attachedOnly }} jen v přílohách stránky)</span>
+                        @endif
+                    </dd>
                     <dt class="text-gray-500">Celková velikost</dt>
                     <dd class="font-medium">{{ \Illuminate\Support\Number::withLocale('cs', fn () => \Illuminate\Support\Number::fileSize($analysis->totalSize(), precision: 1)) }}</dd>
                     @if ($preview['alreadyImported'] > 0)

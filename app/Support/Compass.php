@@ -28,7 +28,7 @@ class Compass
     /**
      * The view direction a file name states, in degrees, or null. Understands an explicit
      * azimuth ("128°") and Czech direction words with or without diacritics, including split
-     * compounds ("severo východ"), e.g. "Sever - směr Plačice.jpg", "sektor_jih_2019.jpg".
+     * compounds ("severo východ", "sever východ"), e.g. "Sever - směr Plačice.jpg", "sektor_jih_2019.jpg".
      */
     public static function headingFromFilename(string $filename): ?int
     {
@@ -41,7 +41,9 @@ class Compass
         $tokens = preg_split('/[^a-z]+/', Str::lower(Str::ascii($name)), flags: PREG_SPLIT_NO_EMPTY);
 
         foreach ($tokens as $index => $token) {
-            $compound = in_array($token, ['severo', 'jiho'], true) ? $token.($tokens[$index + 1] ?? '') : null;
+            // Split compounds: "severo východ", but also "sever východ" and "jih západ".
+            $stem = ['severo' => 'severo', 'sever' => 'severo', 'jiho' => 'jiho', 'jih' => 'jiho'][$token] ?? null;
+            $compound = $stem !== null && in_array($tokens[$index + 1] ?? '', ['vychod', 'zapad'], true) ? $stem.$tokens[$index + 1] : null;
 
             if ($compound !== null && isset(self::WORDS[$compound])) {
                 return self::WORDS[$compound];

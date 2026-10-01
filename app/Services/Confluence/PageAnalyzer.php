@@ -14,6 +14,9 @@ use DOMXPath;
  *   `exclude` parameters and ordered by its `sort` / `reverse` parameters;
  * - `ac:image` elements embed single attachments, in page order.
  *
+ * - on pages without a gallery macro, image attachments the page doesn't show come last,
+ *   ordered by name: archive pages often have photos only in their attachments.
+ *
  * Images of other pages and external images (`ri:url`) are never fetched; they are reported
  * as skipped, as are attachments the gallery can't store (format, size).
  */
@@ -49,7 +52,9 @@ class PageAnalyzer
         $wanted = [];
         $skipped = [];
 
-        foreach ($xpath->query('//ac:structured-macro[@ac:name="gallery"]') as $macro) {
+        $galleries = $xpath->query('//ac:structured-macro[@ac:name="gallery"]');
+
+        foreach ($galleries as $macro) {
             array_push($wanted, ...$this->galleryFilenames($xpath, $macro, $attachments));
         }
 
@@ -75,9 +80,20 @@ class PageAnalyzer
             }
         }
 
+        $shown = array_values(array_unique($wanted));
+
+        // A gallery macro already decides about every attachment (include/exclude); without one,
+        // image attachments the page doesn't show are photos too.
+        $attachedOnly = $galleries->length > 0 ? [] : collect($attachments)
+            ->filter(fn (ConfluenceAttachment $attachment): bool => str_starts_with($attachment->mediaType, 'image/') && ! in_array($attachment->filename, $shown, true))
+            ->map(fn (ConfluenceAttachment $attachment): string => $attachment->filename)
+            ->sort(SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
+            ->all();
+
         $photos = [];
 
-        foreach (array_values(array_unique($wanted)) as $filename) {
+        foreach ([...$shown, ...$attachedOnly] as $filename) {
             $attachment = $byName[$filename] ?? null;
             $reason = $attachment === null ? 'příloha nenalezena' : $this->rejectionReason($attachment);
 
@@ -88,7 +104,9 @@ class PageAnalyzer
             }
         }
 
-        return new PageAnalysis($photos, $skipped);
+        $attachedOnlyCount = count(array_filter($photos, fn (ConfluenceAttachment $photo): bool => in_array($photo->filename, $attachedOnly, true)));
+
+        return new PageAnalysis($photos, $skipped, $attachedOnlyCount);
     }
 
     /**

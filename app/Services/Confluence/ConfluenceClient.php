@@ -25,7 +25,8 @@ class ConfluenceClient
      * The page id a pasted Confluence URL refers to, or null when the URL is not a supported
      * page URL on the configured host.
      *
-     * Supported: `/spaces/{key}/pages/{id}/…`, `/pages/viewpage.action?pageId={id}` and
+     * Supported: `/spaces/{key}/pages/{id}/…`, blog posts `/spaces/{key}/blog/{y}/{m}/{d}/{id}/…`,
+     * `/pages/viewpage.action?pageId={id}` and
      * `/display/{key}/{title}` (looked up by title).
      */
     public function pageIdFromUrl(string $url): ?int
@@ -39,7 +40,7 @@ class ConfluenceClient
 
         $path = $parts['path'] ?? '';
 
-        if (preg_match('#/spaces/[^/]+/pages/(\d+)(?:/|$)#', $path, $matches) === 1) {
+        if (preg_match('#/spaces/[^/]+/(?:pages|blog/\d{4}/\d{2}/\d{2})/(\d+)(?:/|$)#', $path, $matches) === 1) {
             return (int) $matches[1];
         }
 
@@ -63,7 +64,7 @@ class ConfluenceClient
     {
         $data = $this->get("/rest/api/content/{$pageId}", ['expand' => 'body.storage,version,space,ancestors'])->json();
 
-        if (($data['type'] ?? null) !== 'page') {
+        if (! in_array($data['type'] ?? null, ['page', 'blogpost'], true)) {
             throw new ConfluenceException('Adresa nevede na stránku Confluence.');
         }
 

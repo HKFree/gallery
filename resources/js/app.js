@@ -1,3 +1,3 @@
 import './gallery';
 import './timeline';
-import './scene-tags';
+import './photo-analysis';

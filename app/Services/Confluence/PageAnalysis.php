@@ -8,12 +8,14 @@ namespace App\Services\Confluence;
 final readonly class PageAnalysis
 {
     /**
-     * @param  list<ConfluenceAttachment>  $photos  in page order
+     * @param  list<ConfluenceAttachment>  $photos  in page order, then attachments not shown on the page
      * @param  list<array{name: string, reason: string}>  $skipped
+     * @param  int  $attachedOnly  how many of the photos are attachments the page doesn't show
      */
     public function __construct(
         public array $photos,
         public array $skipped,
+        public int $attachedOnly = 0,
     ) {}
 
     /**

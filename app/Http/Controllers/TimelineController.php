@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryImage;
+use App\Services\DirectionSuggestions;
 use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
+use App\Services\GalleryStorage;
 use App\Services\Timeline;
 use App\Services\UserdbService;
 use App\Support\GalleryLinks;
@@ -23,6 +25,8 @@ class TimelineController extends Controller
         private readonly GalleryIndex $index,
         private readonly Timeline $timeline,
         private readonly GalleryDescriptions $descriptions,
+        private readonly DirectionSuggestions $suggestions,
+        private readonly GalleryStorage $storage,
     ) {}
 
     /**
@@ -87,11 +91,24 @@ class TimelineController extends Controller
             ? 0
             : $this->index->reconcileAp($visibility, $areaId, $apId, self::RECONCILE_LIMIT)['pending'];
 
+        $canManage = Gate::allows('manage-gallery');
+        $suggestions = null;
+
         return $this->respond(
             $request,
             GalleryImage::query()->where(['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId]),
-            fn (GalleryImage $image): array => GalleryLinks::image($visibility, $areaId, $apId, $image->filename),
-            canManage: Gate::allows('manage-gallery'),
+            function (GalleryImage $image) use ($visibility, $areaId, $apId, $canManage, &$suggestions): array {
+                // Worked out once per page, and only for managers, who can confirm suggestions.
+                $suggestions ??= $canManage
+                    ? $this->suggestions->forGallery($visibility, $areaId, $apId, $this->storage->imageNames($visibility, $areaId, $apId))
+                    : [];
+
+                return [
+                    ...GalleryLinks::image($visibility, $areaId, $apId, $image->filename),
+                    'suggestion' => $suggestions[$image->filename] ?? null,
+                ];
+            },
+            canManage: $canManage,
             view: 'gallery.timeline',
             url: route($visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline', ['area' => $areaId, 'ap' => $apId]),
             data: ['visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending],

@@ -207,7 +207,9 @@ document.addEventListener('submit', async (e) => {
 
         image.alt = description ?? image.dataset.name;
         image.title = description ?? '';
-        form.closest('details').open = false;
+        figure.querySelector('[data-suggestion]')?.remove();
+        const details = form.closest('details');
+        if (details) details.open = false;
     } catch {
         window.alert('Uložení směru se nezdařilo.');
     }
