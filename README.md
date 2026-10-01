@@ -13,6 +13,9 @@ right role can upload and remove photos directly in the browser.
   where available. See the [timeline documentation](docs/timeline/README.md).
 - **Import from Confluence** — managers paste a page URL from the photo archive
   (`doc.hkfree.org`) into a gallery and its photos are imported in the background.
+- **Photo descriptions** — which AP a view is taken from, its direction and the other APs in
+  view, plus a scene type recognised in the manager's browser. See the
+  [import and descriptions documentation](docs/confluence-import/README.md) (Czech).
 - **Images stream through the application** from a private disk, so private documentation
   is never directly reachable; thumbnails are generated on upload, or on demand when missing.
 
@@ -41,6 +44,7 @@ The most important environment variables (see `.env.example` for the full list):
 | `GALLERY_TIMEZONE` | Timezone used to place photos in months on the timeline (default `Europe/Prague`). |
 | `CONFLUENCE_BASE_URL` | The Confluence the import reads from (default `https://doc.hkfree.org`); no other host is ever contacted. |
 | `CONFLUENCE_TOKEN` | Optional Confluence personal access token, only needed for restricted spaces. |
+| `GALLERY_SCENE_MODEL_URL` | Optional self-hosted mirror of the scene recognition model (default: Hugging Face). |
 
 ## Local development
 

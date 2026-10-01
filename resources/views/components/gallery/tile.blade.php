@@ -7,7 +7,7 @@
     </a>
     @if ($canManage)
         <details data-heading class="absolute left-1.5 top-1.5 z-10 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100 open:opacity-100">
-            <summary title="Nastavit směr pohledu" class="block cursor-pointer list-none rounded-md bg-white/90 p-1.5 text-gray-700 shadow hover:bg-white [&::-webkit-details-marker]:hidden">
+            <summary title="Nastavit směr pohledu" class="block w-fit cursor-pointer list-none rounded-md bg-white/90 p-1.5 text-gray-700 shadow hover:bg-white [&::-webkit-details-marker]:hidden">
                 <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" />
                     <path stroke-linejoin="round" d="M15.5 8.5l-2 5-5 2 2-5 5-2z" />

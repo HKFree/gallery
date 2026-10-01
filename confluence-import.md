@@ -6,7 +6,7 @@ gallery, click a button, and get all photos from that page imported into that ga
 Optionally, each photo gets a short, useful description: which AP it was taken from, which
 direction it looks, which other APs lie that way, and what kind of scene it shows.
 
-Status: plan; phase 0 (caption test) done, see section 7. Branch `confluence-import`, based on `timeline`: the
+Status: implemented (phases 0–4). User documentation in Czech: `docs/confluence-import/`. Branch `confluence-import`, based on `timeline`: the
 import reuses the timeline index and its date handling.
 
 ---
