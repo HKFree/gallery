@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\GalleryIndex;
 use App\Services\GalleryStorage;
 use App\Services\UserdbService;
+use App\Support\GalleryLinks;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -151,17 +152,10 @@ class GalleryController extends Controller
      */
     private function images(string $visibility, int $areaId, int $apId): array
     {
-        $names = $this->storage->imageNames($visibility, $areaId, $apId);
-        $route = $visibility === 'priv' ? 'private' : 'public';
-
-        return array_map(fn (string $name): array => [
-            'name' => $name,
-            'url' => route("gallery.{$route}.image", ['area' => $areaId, 'ap' => $apId, 'filename' => $name]),
-            'thumb_url' => route("gallery.{$route}.thumb", ['area' => $areaId, 'ap' => $apId, 'filename' => $name]),
-            'delete_url' => route('gallery.destroy', [
-                'visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => $name,
-            ]),
-        ], $names);
+        return array_map(
+            fn (string $name): array => GalleryLinks::image($visibility, $areaId, $apId, $name),
+            $this->storage->imageNames($visibility, $areaId, $apId),
+        );
     }
 
     /**

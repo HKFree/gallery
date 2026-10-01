@@ -146,27 +146,32 @@ function initDropzone(zone) {
     });
 }
 
-function initDelete(button) {
-    button.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (!window.confirm('Přesunout obrázek do koše?')) return;
+// Delegated, so delete buttons on tiles appended later (timeline pages) work too.
+async function handleDelete(button) {
+    if (!window.confirm('Přesunout obrázek do koše?')) return;
 
-        try {
-            const response = await fetch(button.dataset.deleteUrl, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
-            });
+    try {
+        const response = await fetch(button.dataset.deleteUrl, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+        });
 
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            button.closest('[data-image]')?.remove();
-        } catch (error) {
-            window.alert('Smazání se nezdařilo.');
-        }
-    });
+        button.closest('[data-image]')?.remove();
+    } catch (error) {
+        window.alert('Smazání se nezdařilo.');
+    }
 }
+
+document.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-delete-url]');
+    if (!button) return;
+
+    e.preventDefault();
+    handleDelete(button);
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-dropzone]').forEach(initDropzone);
-    document.querySelectorAll('[data-delete-url]').forEach(initDelete);
 });

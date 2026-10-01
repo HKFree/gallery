@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\KeycloakController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\TimelineController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', [HomeController::class, 'index'])->name('home');
@@ -21,6 +22,10 @@ Route::get('/gal/area/{area}/ap/{ap}/pub', [GalleryController::class, 'showPubli
     ->whereNumber(['area', 'ap'])
     ->name('gallery.public');
 
+Route::get('/gal/area/{area}/ap/{ap}/pub/timeline', [TimelineController::class, 'showPublic'])
+    ->whereNumber(['area', 'ap'])
+    ->name('gallery.public.timeline');
+
 Route::get('/gal/area/{area}/ap/{ap}/pub/image/{filename}', [GalleryController::class, 'publicImage'])
     ->whereNumber(['area', 'ap'])
     ->name('gallery.public.image');
@@ -36,6 +41,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/gal/area/{area}/ap/{ap}/priv', [GalleryController::class, 'showPrivate'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.private');
+
+    Route::get('/gal/area/{area}/ap/{ap}/priv/timeline', [TimelineController::class, 'showPrivate'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.private.timeline');
 
     Route::get('/gal/area/{area}/ap/{ap}/priv/image/{filename}', [GalleryController::class, 'privateImage'])
         ->whereNumber(['area', 'ap'])
