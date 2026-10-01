@@ -5,6 +5,10 @@
 @section('content')
     <x-gallery.header :area="$area" :ap="$ap" :visibility="$visibility" mode="timeline" />
 
+    @if ($canManage || collect($coverage)->sum('count') > 0)
+        <x-gallery.coverage :sectors="$coverage" />
+    @endif
+
     @if ($canManage)
         <x-gallery.dropzone :area="$area" :ap="$ap" :visibility="$visibility" />
     @endif

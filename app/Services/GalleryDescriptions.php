@@ -6,6 +6,7 @@ use App\Enums\Scene;
 use App\Models\GalleryImage;
 use App\Models\GalleryImageDescription;
 use App\Models\User;
+use App\Support\ApName;
 use App\Support\Compass;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Number;
@@ -187,7 +188,7 @@ class GalleryDescriptions
         $fromAp = ! $hasOwnOrigin
             || ($ap['lat'] !== null && Compass::distanceKm($lat, $lon, $ap['lat'], $ap['lon']) <= self::AT_AP_KM);
 
-        $text = ($fromAp ? 'Výhled z '.$this->apName($ap['name']) : 'Výhled')
+        $text = ($fromAp ? 'Výhled z '.ApName::label($ap['name']) : 'Výhled')
             .' na '.Compass::point($facts->heading)." ({$facts->heading}°)";
 
         if ($lat !== null && $lon !== null) {
@@ -239,17 +240,9 @@ class GalleryDescriptions
             ->filter(fn (array $ap): bool => $ap['km'] > 0.05 && $ap['km'] <= self::MAX_TARGET_KM && $ap['angle'] <= self::VIEW_HALF_ANGLE)
             ->sortBy('km')
             ->take(self::MAX_TARGETS)
-            ->map(fn (array $ap): string => $this->apName($ap['name']).' ('.Number::format($ap['km'], precision: 1, locale: 'cs').' km)')
+            ->map(fn (array $ap): string => ApName::label($ap['name']).' ('.Number::format($ap['km'], precision: 1, locale: 'cs').' km)')
             ->values()
             ->all();
-    }
-
-    /**
-     * "AP Brno", but "Plotiště AP" as is.
-     */
-    private function apName(string $name): string
-    {
-        return preg_match('/\bAP\b/u', $name) === 1 ? $name : "AP {$name}";
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryImageEmbedding;
+use App\Services\DirectionCoverage;
 use App\Services\DirectionSuggestions;
 use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
@@ -31,6 +32,7 @@ class GalleryController extends Controller
         private readonly GalleryIndex $index,
         private readonly GalleryDescriptions $descriptions,
         private readonly DirectionSuggestions $suggestions,
+        private readonly DirectionCoverage $coverage,
     ) {}
 
     public function showPublic(int $area, int $ap): View
@@ -139,6 +141,7 @@ class GalleryController extends Controller
             'images' => $images,
             'canManage' => $canManage,
             'suggestionCount' => count(array_filter(array_column($images, 'suggestion'))),
+            'coverage' => $this->coverage->forGallery($visibility, $areaId, $apId),
         ]);
     }
 

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\KeycloakController;
 use App\Http\Controllers\ConfluenceImportController;
+use App\Http\Controllers\CoverageController;
 use App\Http\Controllers\DescriptionController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HomeController;
@@ -63,6 +64,8 @@ Route::middleware('auth')->group(function () {
  * Write actions (upload / soft-delete) — authenticated SO,VV,etc. role only.
  */
 Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
+    Route::get('/pokryti', [CoverageController::class, 'index'])->name('coverage');
+
     Route::post('/gal/area/{area}/ap/{ap}/{visibility}/upload', [GalleryController::class, 'uploadChunk'])
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])

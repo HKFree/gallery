@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryImage;
+use App\Services\DirectionCoverage;
 use App\Services\DirectionSuggestions;
 use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
@@ -27,6 +28,7 @@ class TimelineController extends Controller
         private readonly GalleryDescriptions $descriptions,
         private readonly DirectionSuggestions $suggestions,
         private readonly GalleryStorage $storage,
+        private readonly DirectionCoverage $coverage,
     ) {}
 
     /**
@@ -111,7 +113,10 @@ class TimelineController extends Controller
             canManage: $canManage,
             view: 'gallery.timeline',
             url: route($visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline', ['area' => $areaId, 'ap' => $apId]),
-            data: ['visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending],
+            data: [
+                'visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending,
+                'coverage' => $request->has('cursor') ? [] : $this->coverage->forGallery($visibility, $areaId, $apId),
+            ],
         );
     }
 

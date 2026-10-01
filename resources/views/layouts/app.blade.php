@@ -21,6 +21,12 @@
                    @class(['rounded-md px-3 py-1.5 font-medium hover:bg-gray-100', 'text-gray-900' => request()->routeIs('timeline'), 'text-gray-600' => ! request()->routeIs('timeline')])>
                     Časová osa
                 </a>
+                @can('manage-gallery')
+                    <a href="{{ route('coverage') }}"
+                       @class(['rounded-md px-3 py-1.5 font-medium hover:bg-gray-100', 'text-gray-900' => request()->routeIs('coverage'), 'text-gray-600' => ! request()->routeIs('coverage')])>
+                        Pokrytí výhledů
+                    </a>
+                @endcan
                 @auth
                     <span class="text-gray-600">{{ auth()->user()->name }}</span>
                     @can('manage-gallery')
