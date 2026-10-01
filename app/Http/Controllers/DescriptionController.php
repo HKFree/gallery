@@ -43,17 +43,26 @@ class DescriptionController extends Controller
             'source' => ['nullable', Rule::in(['manual', 'similarity'])],
             'scene' => ['nullable', Rule::enum(Scene::class)],
             'score' => ['required_with:scene', 'nullable', 'numeric', 'between:0,1'],
+            'obstruction_kind' => ['nullable', Rule::in(['trees', 'other', 'unknown'])],
+            'obstruction' => ['nullable', 'required_if:obstruction_kind,trees,other', 'numeric', 'between:0,1'],
         ]);
 
         // An empty `heading` clears the direction, so presence (not a value) is what counts.
-        if (! $request->has('heading') && empty($validated['scene'])) {
-            throw ValidationException::withMessages(['heading' => 'Chybí směr nebo typ scény.']);
+        if (! $request->has('heading') && empty($validated['scene']) && empty($validated['obstruction_kind'])) {
+            throw ValidationException::withMessages(['heading' => 'Chybí směr, typ scény nebo zakrytí výhledu.']);
         }
 
         $filename = $this->existingPhoto($visibility, $area, $ap, $validated['filename']);
 
-        if (isset($validated['scene'])) {
-            $this->descriptions->setScene($visibility, $area, $ap, $filename, Scene::from($validated['scene']), (float) $validated['score']);
+        if (isset($validated['scene']) || isset($validated['obstruction_kind'])) {
+            if (isset($validated['scene'])) {
+                $this->descriptions->setScene($visibility, $area, $ap, $filename, Scene::from($validated['scene']), (float) $validated['score']);
+            }
+
+            if (isset($validated['obstruction_kind'])) {
+                $share = isset($validated['obstruction']) ? (float) $validated['obstruction'] : null;
+                $this->descriptions->setObstruction($visibility, $area, $ap, $filename, $share, $validated['obstruction_kind']);
+            }
         } else {
             $heading = $request->filled('heading') ? (int) $validated['heading'] : null;
             $this->descriptions->setHeading($visibility, $area, $ap, $filename, $heading, $request->user(), $validated['source'] ?? 'manual');
@@ -115,7 +124,8 @@ class DescriptionController extends Controller
 
     /**
      * Photos of this gallery that still need analysing in the browser (optionally only those of
-     * one import): a scene type, an image embedding for direction suggestions, or both.
+     * one import, or the given `files`): a scene type, an image embedding for direction
+     * suggestions, and how much of the view is obstructed.
      */
     public function analysisQueue(Request $request, int $area, int $ap, string $visibility): JsonResponse
     {
@@ -128,8 +138,13 @@ class DescriptionController extends Controller
             $names = array_values(array_intersect($names, $import->items()->whereNotNull('stored_filename')->pluck('stored_filename')->all()));
         }
 
+        if ($request->filled('files')) {
+            $names = array_values(array_intersect($names, array_map('strval', (array) $request->input('files'))));
+        }
+
         $gallery = ['visibility' => $visibility, 'area_id' => $area, 'ap_id' => $ap];
         $tagged = GalleryImageDescription::query()->where($gallery)->whereNotNull('scene')->pluck('filename')->flip();
+        $measured = GalleryImageDescription::query()->where($gallery)->whereNotNull('obstruction_kind')->pluck('filename')->flip();
         $embedded = GalleryImageEmbedding::query()->where([...$gallery, 'model' => DirectionSuggestions::MODEL])->pluck('filename')->flip();
 
         return response()->json(collect($names)
@@ -138,8 +153,9 @@ class DescriptionController extends Controller
                 'thumb_url' => GalleryLinks::image($visibility, $area, $ap, $name)['thumb_url'],
                 'scene' => ! $tagged->has($name),
                 'embedding' => ! $embedded->has($name),
+                'obstruction' => ! $measured->has($name),
             ])
-            ->filter(fn (array $photo): bool => $photo['scene'] || $photo['embedding'])
+            ->filter(fn (array $photo): bool => $photo['scene'] || $photo['embedding'] || $photo['obstruction'])
             ->values());
     }
 

@@ -1,5 +1,27 @@
 // Gallery drag & drop upload and soft-delete, plain vanilla JS (no framework).
 
+import { analysePhotos } from './photo-analysis';
+
+// Whether to analyse photos right after uploading them (remembered per browser; the first
+// analysis downloads the models, so it is opt-in).
+const ANALYSE_AFTER_UPLOAD = 'gallery.analyseAfterUpload';
+
+const remembered = (key) => {
+    try {
+        return window.localStorage.getItem(key) === '1';
+    } catch {
+        return false;
+    }
+};
+
+const remember = (key, value) => {
+    try {
+        window.localStorage.setItem(key, value ? '1' : '0');
+    } catch {
+        // Storage unavailable (private mode): the choice just isn't remembered.
+    }
+};
+
 // Slice uploads into 1 MB chunks so each request stays well under PHP's
 // upload_max_filesize / post_max_size; the server reassembles them.
 const CHUNK_SIZE = 1024 * 1024;
@@ -12,6 +34,12 @@ function initDropzone(zone) {
     const status = zone.querySelector('[data-dropzone-status]');
     const spinner = zone.querySelector('[data-dropzone-spinner]');
     const uploadUrl = zone.dataset.uploadUrl;
+    const analyseToggle = zone.parentElement.querySelector('[data-analyse-after-upload]');
+
+    if (analyseToggle) {
+        analyseToggle.checked = remembered(ANALYSE_AFTER_UPLOAD);
+        analyseToggle.addEventListener('change', () => remember(ANALYSE_AFTER_UPLOAD, analyseToggle.checked));
+    }
 
     const setStatus = (text) => {
         if (status) status.textContent = text;
@@ -39,7 +67,7 @@ function initDropzone(zone) {
     };
 
     // Upload a single file as a sequence of chunks under one upload id.
-    // Returns an error string on failure, or null on success.
+    // Returns {error} on failure, or {filename} (as stored) on success.
     const uploadFile = async (file, label) => {
         const uploadId = crypto.randomUUID();
         const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
@@ -71,14 +99,18 @@ function initDropzone(zone) {
                 });
 
                 if (!response.ok) {
-                    return `${file.name}: ${await errorMessage(response)}`;
+                    return { error: `${file.name}: ${await errorMessage(response)}` };
+                }
+
+                if (index === totalChunks - 1) {
+                    return { filename: (await response.json()).filename };
                 }
             } catch (error) {
-                return `${file.name}: nahrání se nezdařilo.`;
+                return { error: `${file.name}: nahrání se nezdařilo.` };
             }
         }
 
-        return null;
+        return { error: `${file.name}: nahrání se nezdařilo.` };
     };
 
     const upload = async (fileList) => {
@@ -93,18 +125,18 @@ function initDropzone(zone) {
 
         setBusy(true);
 
-        let uploaded = 0;
+        const uploaded = [];
         const errors = [];
 
         // Upload one file at a time; each is chunked so a large/invalid file can't fail
         // the whole batch and every request stays under post_max_size.
         for (const [index, file] of files.entries()) {
-            const error = await uploadFile(file, `${index + 1}/${files.length}`);
+            const { error, filename } = await uploadFile(file, `${index + 1}/${files.length}`);
 
             if (error) {
                 errors.push(error);
             } else {
-                uploaded++;
+                uploaded.push(filename);
             }
         }
 
@@ -114,11 +146,22 @@ function initDropzone(zone) {
 
         if (errors.length > 0) {
             setBusy(false);
-            setStatus(`Nahráno ${uploaded}/${files.length}, chyb: ${errors.length}.`);
+            setStatus(`Nahráno ${uploaded.length}/${files.length}, chyb: ${errors.length}.`);
             window.alert('Některé soubory se nepodařilo nahrát:\n\n' + errors.join('\n'));
         }
 
-        if (uploaded > 0) {
+        if (uploaded.length > 0 && analyseToggle?.checked) {
+            try {
+                const queue = new URL(zone.dataset.queueUrl, window.location.href);
+                uploaded.forEach((filename) => queue.searchParams.append('files[]', filename));
+                await analysePhotos({ ...zone.dataset, queueUrl: queue.toString() }, setStatus);
+            } catch (error) {
+                console.error(error);
+                window.alert('Fotky jsou nahrané, ale jejich analýza se nezdařila. Spusťte ji tlačítkem „Analyzovat fotky“.');
+            }
+        }
+
+        if (uploaded.length > 0) {
             setStatus('Hotovo, načítám…');
             window.location.reload();
         }

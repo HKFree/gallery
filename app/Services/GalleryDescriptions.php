@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Support\Compass;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 
 /**
  * Descriptions of gallery photos, composed from stored facts when a page is rendered:
@@ -32,6 +33,9 @@ class GalleryDescriptions
 
     /** An EXIF position within this distance of the AP counts as taken from the AP. */
     private const AT_AP_KM = 0.5;
+
+    /** A view blocked less than this (share of its width) counts as clear. */
+    private const CLEAR_VIEW_BELOW = 0.1;
 
     public function __construct(
         private readonly GalleryStorage $storage,
@@ -86,6 +90,17 @@ class GalleryDescriptions
         return GalleryImageDescription::updateOrCreate($this->key($visibility, $areaId, $apId, $filename), [
             'scene' => $scene,
             'scene_score' => $score,
+        ]);
+    }
+
+    /**
+     * Store how much of the view near obstacles block, as measured in the browser.
+     */
+    public function setObstruction(string $visibility, int $areaId, int $apId, string $filename, ?float $share, string $kind): GalleryImageDescription
+    {
+        return GalleryImageDescription::updateOrCreate($this->key($visibility, $areaId, $apId, $filename), [
+            'obstruction' => $kind === 'unknown' ? null : $share,
+            'obstruction_kind' => $kind,
         ]);
     }
 
@@ -158,9 +173,9 @@ class GalleryDescriptions
      */
     public function compose(GalleryImageDescription $facts, array $ap, Collection $aps): ?string
     {
-        $scene = $facts->scene !== null && $facts->scene_score >= Scene::MIN_SCORE
-            ? "{$facts->scene->label()} (rozpoznáno automaticky)."
-            : null;
+        $scene = $facts->scene !== null && $facts->scene_score >= Scene::MIN_SCORE ? $facts->scene : null;
+        $recognised = array_values(array_filter([$scene?->label(), $this->obstructionPhrase($facts, $scene)]));
+        $scene = $recognised === [] ? null : Str::ucfirst(implode(', ', $recognised)).' (rozpoznáno automaticky).';
 
         if ($facts->heading === null) {
             return $scene;
@@ -185,6 +200,25 @@ class GalleryDescriptions
         }
 
         return $text.'.'.($scene === null ? '' : " {$scene}");
+    }
+
+    /**
+     * How much near obstacles block the view ("stromy zakrývají asi 20 % výhledu"), or null when
+     * unknown, or for photos that aren't views (antennas, cabinets, roofs).
+     */
+    private function obstructionPhrase(GalleryImageDescription $facts, ?Scene $scene): ?string
+    {
+        if ($facts->obstruction === null || in_array($scene, [Scene::Anteny, Scene::Technika, Scene::Strecha], true)) {
+            return null;
+        }
+
+        if ($facts->obstruction < self::CLEAR_VIEW_BELOW) {
+            return 'bez překážek';
+        }
+
+        $percent = max(5, (int) (round($facts->obstruction * 20) * 5));
+
+        return ($facts->obstruction_kind === 'trees' ? 'stromy' : 'překážky')." zakrývají asi {$percent} % výhledu";
     }
 
     /**

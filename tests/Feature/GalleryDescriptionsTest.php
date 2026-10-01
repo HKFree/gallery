@@ -133,3 +133,31 @@ it('shows descriptions on grid and timeline tiles, as alt text too', function ()
             ->assertSee('data-description', escape: false);
     }
 });
+
+it('describes how much of the view is obstructed', function (?float $share, ?string $kind, ?Scene $scene, ?string $expected) {
+    factsFor(['scene' => $scene, 'scene_score' => $scene ? 0.9 : null, 'obstruction' => $share, 'obstruction_kind' => $kind]);
+
+    expect(describeFacts())->toBe($expected);
+})->with([
+    'clear view' => [0.03, 'trees', Scene::Krajina, 'Výhled do krajiny, bez překážek (rozpoznáno automaticky).'],
+    'trees' => [0.22, 'trees', Scene::Zastavba, 'Výhled na zástavbu, stromy zakrývají asi 20 % výhledu (rozpoznáno automaticky).'],
+    'other obstacles, no scene' => [0.56, 'other', null, 'Překážky zakrývají asi 55 % výhledu (rozpoznáno automaticky).'],
+    'not judged (no sky)' => [null, 'unknown', Scene::Zastavba, 'Výhled na zástavbu (rozpoznáno automaticky).'],
+    'not a view' => [0.4, 'other', Scene::Technika, 'Rozvaděč / technika (rozpoznáno automaticky).'],
+]);
+
+it('adds the obstruction after the direction', function () {
+    factsFor(['heading' => 0, 'heading_source' => 'manual', 'obstruction' => 0.05, 'obstruction_kind' => 'trees']);
+
+    expect(describeFacts())->toBe('Výhled z AP Brno na S (0°) — směrem AP Brno-Sever (2,2 km). Bez překážek (rozpoznáno automaticky).');
+});
+
+it('captures the direction of a normal upload from the phone compass', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    uploadGalleryChunks('pub', 13, 201, 'phone.jpg', jpegWithGps(49.195, 16.61, 1.0))->assertOk();
+
+    expect(GalleryImageDescription::sole())->heading->toBe(1)->heading_source->toBe('exif')
+        ->and(app(GalleryDescriptions::class)->texts('pub', 13, 201, ['phone.jpg'])['phone.jpg'])
+        ->toBe('Výhled z AP Brno na S (1°) — směrem AP Brno-Sever (2,2 km).');
+});

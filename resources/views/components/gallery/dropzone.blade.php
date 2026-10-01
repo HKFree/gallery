@@ -2,6 +2,10 @@
 <div class="mb-6">
     <div data-dropzone
          data-upload-url="{{ route('gallery.upload', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
+         data-queue-url="{{ route('gallery.analysis-queue', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
+         data-description-url="{{ route('gallery.description', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
+         data-embedding-url="{{ route('gallery.embedding', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
+         @if (config('services.gallery.scene_model_url')) data-model-host="{{ config('services.gallery.scene_model_url') }}" @endif
          class="cursor-pointer rounded-lg border-2 border-dashed border-gray-300 bg-white px-6 py-8 text-center transition hover:border-emerald-400 hover:bg-emerald-50/40">
         <input type="file" accept="image/*" multiple hidden data-dropzone-input>
         <p class="text-sm text-gray-600">
@@ -15,7 +19,12 @@
             <p data-dropzone-status class="text-xs text-gray-400"></p>
         </div>
     </div>
-    <p class="mt-2 flex flex-wrap justify-end gap-x-4 gap-y-1 text-sm">
+    <p class="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
+        <label class="mr-auto inline-flex cursor-pointer items-center gap-1.5 text-gray-600"
+               title="Po nahrání rozpozná typ scény, zakrytí výhledu a podobné fotky pro návrhy směru. Poprvé se stáhne asi 120 MB.">
+            <input type="checkbox" data-analyse-after-upload class="rounded border-gray-300 text-emerald-700">
+            Po nahrání fotky analyzovat
+        </label>
         @if ($suggestionCount > 0)
             <form method="POST" action="{{ route('gallery.suggestions.confirm', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}" class="inline">
                 @csrf

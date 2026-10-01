@@ -116,3 +116,38 @@ it('shows the compass and scene recognition to managers only', function () {
         ->assertSee('data-photo-analysis', escape: false)
         ->assertSee('Nastavit směr pohledu');
 });
+
+it('stores the measured obstruction, or that it could not be judged', function () {
+    $admin = User::factory()->admin()->create();
+
+    $this->actingAs($admin)
+        ->postJson(descriptionUrl(), ['filename' => 'a.jpg', 'scene' => 'krajina', 'score' => 0.9, 'obstruction' => 0.31, 'obstruction_kind' => 'trees'])
+        ->assertOk()
+        ->assertJson(['description' => 'Výhled do krajiny, stromy zakrývají asi 30 % výhledu (rozpoznáno automaticky).']);
+
+    $this->actingAs($admin)
+        ->postJson(descriptionUrl(), ['filename' => 'b.jpg', 'obstruction_kind' => 'unknown'])
+        ->assertOk();
+
+    expect(GalleryImageDescription::where('filename', 'b.jpg')->sole())->obstruction->toBeNull()->obstruction_kind->toBe('unknown');
+
+    $this->actingAs($admin)->postJson(descriptionUrl(), ['filename' => 'a.jpg', 'obstruction_kind' => 'trees'])->assertJsonValidationErrors('obstruction');
+    $this->actingAs($admin)->postJson(descriptionUrl(), ['filename' => 'a.jpg', 'obstruction_kind' => 'birds', 'obstruction' => 0.1])->assertJsonValidationErrors('obstruction_kind');
+    $this->actingAs($admin)->postJson(descriptionUrl(), ['filename' => 'a.jpg', 'obstruction_kind' => 'trees', 'obstruction' => 2])->assertJsonValidationErrors('obstruction');
+});
+
+it('limits the analysis queue to given files, e.g. just uploaded ones', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->getJson(route('gallery.analysis-queue', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'files' => ['b.jpg', 'missing.jpg']]))
+        ->assertOk()
+        ->assertJsonCount(1)
+        ->assertJsonPath('0.filename', 'b.jpg')
+        ->assertJsonPath('0.obstruction', true);
+});
+
+it('offers analysis right after upload to managers', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(route('gallery.public', ['area' => 13, 'ap' => 201]))
+        ->assertSee('data-analyse-after-upload', escape: false)
+        ->assertSee('Po nahrání fotky analyzovat');
+});

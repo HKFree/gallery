@@ -14,9 +14,11 @@ use Illuminate\Database\Eloquent\Model;
  * recognised scene type.
  *
  * Kept apart from the derived `gallery_images` index, so a manually set direction survives
- * re-indexing. `heading_source` is `exif`, `filename` or `manual`.
+ * re-indexing. `heading_source` is `exif`, `filename`, `manual` or `similarity` (a confirmed
+ * suggestion). `obstruction` is the share of the view blocked by near trees (`obstruction_kind`
+ * `trees`) or other obstacles (`other`); `unknown` means the photo couldn't be judged (no sky).
  */
-#[Fillable(['area_id', 'ap_id', 'visibility', 'filename', 'origin_lat', 'origin_lon', 'heading', 'heading_source', 'scene', 'scene_score', 'edited_by'])]
+#[Fillable(['area_id', 'ap_id', 'visibility', 'filename', 'origin_lat', 'origin_lon', 'heading', 'heading_source', 'scene', 'scene_score', 'obstruction', 'obstruction_kind', 'edited_by'])]
 class GalleryImageDescription extends Model
 {
     /** @use HasFactory<GalleryImageDescriptionFactory> */
@@ -37,6 +39,7 @@ class GalleryImageDescription extends Model
             'heading' => 'integer',
             'scene' => Scene::class,
             'scene_score' => 'float',
+            'obstruction' => 'float',
         ];
     }
 }

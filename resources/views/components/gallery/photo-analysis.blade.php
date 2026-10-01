@@ -10,7 +10,7 @@
             data-description-url="{{ route('gallery.description', $parameters) }}"
             data-embedding-url="{{ route('gallery.embedding', $parameters) }}"
             @if (config('services.gallery.scene_model_url')) data-model-host="{{ config('services.gallery.scene_model_url') }}" @endif
-            title="Rozpozná typ scény a najde podobné fotky pro návrhy směru. Modely běží ve vašem prohlížeči; poprvé se stáhne asi 115 MB."
+            title="Rozpozná typ scény, zakrytí výhledu a podobné fotky pro návrhy směru. Modely běží ve vašem prohlížeči; poprvé se stáhne asi 120 MB."
             class="cursor-pointer font-medium text-emerald-700 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60">
         Analyzovat fotky
     </button>
