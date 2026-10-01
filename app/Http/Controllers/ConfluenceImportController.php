@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConfluenceImport;
 use App\Services\Confluence\ConfluenceClient;
 use App\Services\Confluence\ConfluenceException;
+use App\Services\Confluence\ConfluenceImporter;
 use App\Services\Confluence\ConfluencePage;
 use App\Services\Confluence\PageAnalyzer;
 use App\Services\UserdbService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -17,6 +20,7 @@ class ConfluenceImportController extends Controller
         private readonly UserdbService $userdb,
         private readonly ConfluenceClient $confluence,
         private readonly PageAnalyzer $analyzer,
+        private readonly ConfluenceImporter $importer,
     ) {}
 
     /**
@@ -49,9 +53,13 @@ class ConfluenceImportController extends Controller
             $page = $this->confluence->page($pageId);
             $analysis = $this->analyzer->analyze($page, $this->confluence->attachments($pageId));
 
+            $imported = $this->importer->alreadyImported($visibility, $area, $ap, $analysis->photos);
+
             $data['preview'] = [
                 'page' => $page,
                 'analysis' => $analysis,
+                'alreadyImported' => count($imported),
+                'newPhotos' => count($analysis->photos) - count($imported),
                 'children' => $analysis->photos === [] ? $this->confluence->childPages($pageId) : [],
                 'matchesAp' => $this->matchesAp($page, $gallery['name']),
             ];
@@ -60,6 +68,45 @@ class ConfluenceImportController extends Controller
         }
 
         return view('confluence.import', $data);
+    }
+
+    /**
+     * Start importing the page's new photos into this gallery, then show the import's progress.
+     */
+    public function store(Request $request, int $area, int $ap, string $visibility): RedirectResponse
+    {
+        abort_if($this->userdb->findAp($area, $ap) === null, 404);
+
+        $url = (string) $request->validate(['url' => ['required', 'string', 'max:2000']])['url'];
+        $back = route('confluence.import.create', ['visibility' => $visibility, 'area' => $area, 'ap' => $ap, 'url' => $url]);
+
+        try {
+            $pageId = $this->confluence->pageIdFromUrl($url) ?? throw new ConfluenceException('Nepodporovaná adresa.');
+            $import = $this->importer->start($request->user(), $visibility, $area, $ap, $pageId);
+        } catch (ConfluenceException $exception) {
+            return redirect($back)->with('error', $exception->getMessage());
+        }
+
+        return redirect()->route('confluence.import.show', ['visibility' => $visibility, 'area' => $area, 'ap' => $ap, 'import' => $import]);
+    }
+
+    /**
+     * Progress and result of an import into this gallery.
+     */
+    public function show(int $area, int $ap, string $visibility, ConfluenceImport $import): View
+    {
+        $gallery = $this->userdb->findAp($area, $ap);
+
+        abort_if($gallery === null || $import->visibility !== $visibility || $import->area_id !== $area || $import->ap_id !== $ap, 404);
+
+        return view('confluence.status', [
+            'visibility' => $visibility,
+            'area' => $gallery['area'],
+            'ap' => $gallery,
+            'import' => $import,
+            'counts' => $import->itemCounts(),
+            'failures' => $import->items()->where('status', 'failed')->orderBy('id')->get(['original_filename', 'reason']),
+        ]);
     }
 
     /**

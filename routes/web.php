@@ -77,4 +77,15 @@ Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
         ->whereNumber(['area', 'ap'])
         ->middleware('throttle:30,1')
         ->name('confluence.import.create');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/import', [ConfluenceImportController::class, 'store'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->middleware('throttle:10,1')
+        ->name('confluence.import.store');
+
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/import/{import}', [ConfluenceImportController::class, 'show'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap', 'import'])
+        ->name('confluence.import.show');
 });

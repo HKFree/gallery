@@ -34,9 +34,9 @@
         </p>
     </form>
 
-    @if ($error)
-        <p class="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $error }}</p>
-    @endif
+    @foreach (array_filter([$error, session('error')]) as $message)
+        <p class="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</p>
+    @endforeach
 
     @if ($preview)
         @php([$page, $analysis] = [$preview['page'], $preview['analysis']])
@@ -75,7 +75,23 @@
                     <dd class="font-medium">{{ count($analysis->photos) }}</dd>
                     <dt class="text-gray-500">Celková velikost</dt>
                     <dd class="font-medium">{{ \Illuminate\Support\Number::withLocale('cs', fn () => \Illuminate\Support\Number::fileSize($analysis->totalSize(), precision: 1)) }}</dd>
+                    @if ($preview['alreadyImported'] > 0)
+                        <dt class="text-gray-500">Už naimportováno</dt>
+                        <dd class="font-medium">{{ $preview['alreadyImported'] }}</dd>
+                    @endif
                 </dl>
+
+                @if ($preview['newPhotos'] > 0)
+                    <form method="POST" action="{{ route('confluence.import.store', ['visibility' => $visibility, ...$parameters]) }}">
+                        @csrf
+                        <input type="hidden" name="url" value="{{ $url }}">
+                        <button type="submit" class="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-800">
+                            Importovat {{ $preview['newPhotos'] }} {{ $preview['newPhotos'] === 1 ? 'fotku' : ($preview['newPhotos'] < 5 ? 'fotky' : 'fotek') }}
+                        </button>
+                    </form>
+                @else
+                    <p class="text-sm text-gray-700">Všechny fotky z této stránky už v galerii jsou.</p>
+                @endif
             @endif
 
             @if ($analysis->skipped !== [])

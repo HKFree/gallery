@@ -52,14 +52,15 @@ it('returns null for images without EXIF and for corrupt EXIF', function (string
     'not an image' => 'plain text',
 ]);
 
-it('converts client and file timestamps into gallery wall-clock time', function () {
+it('converts source dates and file timestamps into gallery wall-clock time', function () {
     $dates = app(ImageDate::class);
 
     // 2024-01-31 23:30 UTC is already February in Prague.
     $timestamp = CarbonImmutable::parse('2024-01-31 23:30:00', 'UTC')->getTimestamp();
 
     expect($dates->fromTimestamp($timestamp)->format('Y-m-d H:i'))->toBe('2024-02-01 00:30')
-        ->and($dates->fromClientTimestamp($timestamp * 1000)->format('Y-m-d H:i'))->toBe('2024-02-01 00:30')
-        ->and($dates->fromClientTimestamp(null))->toBeNull()
-        ->and($dates->fromClientTimestamp(0))->toBeNull();
+        ->and($dates->fromSourceDate(CarbonImmutable::createFromTimestampMs($timestamp * 1000))->format('Y-m-d H:i'))->toBe('2024-02-01 00:30')
+        ->and($dates->fromSourceDate(CarbonImmutable::parse('2011-05-25T21:49:54+02:00'))->format('Y-m-d H:i'))->toBe('2011-05-25 21:49')
+        ->and($dates->fromSourceDate(null))->toBeNull()
+        ->and($dates->fromSourceDate(CarbonImmutable::createFromTimestamp(0)))->toBeNull();
 });

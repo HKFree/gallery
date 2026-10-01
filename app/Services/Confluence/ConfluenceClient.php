@@ -7,6 +7,8 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use RuntimeException;
+use Throwable;
 
 /**
  * Reads pages and attachments from the configured Confluence (Data Center REST API v1).
@@ -131,6 +133,46 @@ class ConfluenceClient
     }
 
     /**
+     * Stream an attachment into a local file, aborting once it exceeds $maxBytes.
+     *
+     * @param  string  $downloadPath  the attachment's download link, relative to the base URL
+     *
+     * @throws ConfluenceException
+     */
+    public function download(string $downloadPath, string $targetPath, int $maxBytes): void
+    {
+        if (! str_starts_with($downloadPath, '/download/')) {
+            throw new ConfluenceException('Neplatný odkaz na přílohu.');
+        }
+
+        $tooLarge = false;
+        $progress = function (int|float $expected, int|float $received) use ($maxBytes, &$tooLarge): void {
+            if ($expected > $maxBytes || $received > $maxBytes) {
+                $tooLarge = true;
+
+                throw new RuntimeException('Download exceeds the size limit.');
+            }
+        };
+
+        try {
+            $response = $this->request(retry: false)
+                ->timeout(120)
+                ->withOptions(['sink' => $targetPath, 'progress' => $progress])
+                ->get($downloadPath);
+        } catch (Throwable) {
+            throw new ConfluenceException($tooLarge ? 'Soubor je větší než povolený limit.' : 'Stažení přílohy se nezdařilo.');
+        }
+
+        if (! $response->successful()) {
+            throw new ConfluenceException("Stažení přílohy se nezdařilo (chyba {$response->status()}).");
+        }
+
+        if (filesize($targetPath) > $maxBytes) {
+            throw new ConfluenceException('Soubor je větší než povolený limit.');
+        }
+    }
+
+    /**
      * @throws ConfluenceException
      */
     private function pageIdByTitle(string $spaceKey, string $title): ?int
@@ -166,7 +208,7 @@ class ConfluenceClient
         return $response;
     }
 
-    private function request(): PendingRequest
+    private function request(bool $retry = true): PendingRequest
     {
         $token = config('services.confluence.token');
 
@@ -174,7 +216,7 @@ class ConfluenceClient
             ->acceptJson()
             ->connectTimeout(5)
             ->timeout(20)
-            ->retry(2, 500, throw: false)
+            ->when($retry, fn (PendingRequest $request) => $request->retry(2, 500, throw: false))
             ->withOptions(['allow_redirects' => false])
             ->when(filled($token), fn (PendingRequest $request) => $request->withToken((string) $token));
     }

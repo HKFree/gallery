@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\GalleryImage;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 
 /**
@@ -25,13 +26,15 @@ class GalleryIndex
     /**
      * Index (or re-index) a stored image, reading its dates from EXIF and the file.
      *
-     * @param  int|null  $clientModifiedMs  the browser's `File.lastModified` for fresh uploads
+     * @param  CarbonInterface|null  $sourceDate  a date reported by the image's source (the
+     *                                            browser's `File.lastModified`, a Confluence
+     *                                            attachment date), used when EXIF has none
      */
-    public function record(string $visibility, int $areaId, int $apId, string $filename, ?int $clientModifiedMs = null): GalleryImage
+    public function record(string $visibility, int $areaId, int $apId, string $filename, ?CarbonInterface $sourceDate = null): GalleryImage
     {
         return GalleryImage::updateOrCreate(
             $this->key($visibility, $areaId, $apId, $filename),
-            $this->dateAttributes($visibility, $areaId, $apId, $filename, $clientModifiedMs),
+            $this->dateAttributes($visibility, $areaId, $apId, $filename, $sourceDate),
         );
     }
 
@@ -131,11 +134,11 @@ class GalleryIndex
     /**
      * @return array{taken_at: CarbonImmutable|null, client_modified_at: CarbonImmutable|null, uploaded_at: CarbonImmutable}
      */
-    private function dateAttributes(string $visibility, int $areaId, int $apId, string $filename, ?int $clientModifiedMs = null): array
+    private function dateAttributes(string $visibility, int $areaId, int $apId, string $filename, ?CarbonInterface $sourceDate = null): array
     {
         return [
             'taken_at' => $this->dates->takenAt($this->storage->absolutePath($visibility, $areaId, $apId, $filename)),
-            'client_modified_at' => $this->dates->fromClientTimestamp($clientModifiedMs),
+            'client_modified_at' => $this->dates->fromSourceDate($sourceDate),
             'uploaded_at' => $this->dates->fromTimestamp($this->storage->lastModified($visibility, $areaId, $apId, $filename)),
         ];
     }

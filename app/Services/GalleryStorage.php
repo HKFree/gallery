@@ -87,6 +87,25 @@ class GalleryStorage
     }
 
     /**
+     * Absolute path for a temporary file (e.g. a download in progress) in the gallery's temp
+     * directory, which is pruned of stale files.
+     */
+    public function temporaryPath(string $name): string
+    {
+        $this->disk()->makeDirectory(self::TMP_DIR);
+
+        return $this->disk()->path(self::TMP_DIR.'/'.basename($name));
+    }
+
+    /**
+     * Free space, in bytes, on the filesystem holding the gallery.
+     */
+    public function freeSpace(): int
+    {
+        return (int) disk_free_space($this->disk()->path(''));
+    }
+
+    /**
      * Every gallery directory present on disk.
      *
      * @return list<array{visibility: string, area: int, ap: int}>
@@ -204,7 +223,7 @@ class GalleryStorage
         }
 
         try {
-            $filename = $this->persistImage($visibility, $areaId, $apId, new File($absolute), $originalName);
+            $filename = $this->storeImage($visibility, $areaId, $apId, new File($absolute), $originalName);
         } finally {
             $disk->delete([$relative, $progress]);
         }
@@ -217,7 +236,7 @@ class GalleryStorage
      *
      * @return string the stored filename
      */
-    private function persistImage(string $visibility, int $areaId, int $apId, SplFileInfo $file, string $originalName): string
+    public function storeImage(string $visibility, int $areaId, int $apId, SplFileInfo $file, string $originalName): string
     {
         $disk = $this->disk();
         $dir = $this->directory($visibility, $areaId, $apId);

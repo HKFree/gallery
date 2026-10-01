@@ -6,6 +6,7 @@ use App\Services\GalleryIndex;
 use App\Services\GalleryStorage;
 use App\Services\UserdbService;
 use App\Support\GalleryLinks;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -94,9 +95,9 @@ class GalleryController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $clientModifiedAt = isset($validated['client_modified_at']) ? (int) $validated['client_modified_at'] : null;
+        $lastModified = isset($validated['client_modified_at']) ? CarbonImmutable::createFromTimestampMs((int) $validated['client_modified_at']) : null;
 
-        rescue(fn () => $this->index->record($visibility, $area, $ap, $filename, $clientModifiedAt));
+        rescue(fn () => $this->index->record($visibility, $area, $ap, $filename, $lastModified));
 
         return response()->json(['status' => 'ok', 'filename' => $filename]);
     }

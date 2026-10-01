@@ -12,7 +12,9 @@ use Illuminate\Database\Eloquent\Model;
  *
  * All dates are wall-clock times in the gallery timezone (`services.gallery.timezone`), not
  * UTC: EXIF dates carry no zone, so the other dates are converted to match before saving.
- * The timeline orders by `sort_at` (taken, else client-modified, else uploaded) and groups by
+ * `client_modified_at` holds the date reported by the image's source (the browser's
+ * `File.lastModified`, or a Confluence attachment date).
+ * The timeline orders by `sort_at` (taken, else source date, else uploaded) and groups by
  * `sort_month` (`Y-m`), both derived on save.
  */
 #[Fillable(['area_id', 'ap_id', 'visibility', 'filename', 'taken_at', 'client_modified_at', 'uploaded_at'])]
