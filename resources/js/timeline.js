@@ -1,6 +1,13 @@
 // Timeline: load older pages while scrolling, keep the URL on the visible month, and
 // jump via the month select. Plain vanilla JS; without JS the "Starší" link still works.
 
+// Highlight a month in the month index.
+const markCurrentMonth = (month) => {
+    document.querySelectorAll('[data-month-link]').forEach((link) => {
+        link.setAttribute('aria-current', link.dataset.monthLink === month ? 'true' : 'false');
+    });
+};
+
 function initTimeline(timeline) {
     let loading = false;
 
@@ -66,15 +73,13 @@ function initTimeline(timeline) {
             url.searchParams.set('from', month);
             url.searchParams.delete('cursor');
             window.history.replaceState(null, '', url);
-
-            document.querySelectorAll('[data-month-link]').forEach((link) => {
-                link.setAttribute('aria-current', link.dataset.monthLink === month ? 'true' : 'false');
-            });
+            markCurrentMonth(month);
         },
         { rootMargin: '0px 0px -85% 0px' },
     );
 
     timeline.querySelectorAll('[data-month]').forEach((section) => headings.observe(section));
+    markCurrentMonth(timeline.querySelector('[data-month]')?.dataset.month);
     observeMore();
 }
 

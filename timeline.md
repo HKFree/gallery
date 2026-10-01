@@ -9,7 +9,7 @@ back into the past. Two scopes:
 A photo is placed by its **taken date** (EXIF `DateTimeOriginal`), falling back to its
 **upload date** when the taken date is missing or implausible.
 
-Status: plan only, nothing implemented. Open questions are resolved (section 10).
+Status: implemented (phases 0–3). User documentation is in `docs/timeline/`.
 
 ---
 
@@ -90,8 +90,8 @@ New class `App\Services\ImageDate` with one method, `takenAt(string $absolutePat
   - Reject implausible dates: before 1990, or more than one day in the future. This catches
     cameras with an unset clock (1970, 2000-01-01) and bad clocks.
 - **Formats:** JPEG (and TIFF) carry EXIF that PHP can read. PNG and GIF effectively never do.
-  WebP/EXIF support in `exif_read_data` must be **verified during implementation**; if it's
-  unsupported, WebP falls back to the upload date.
+  Verified during implementation: PHP's `exif` extension does not parse WebP (only JPEG, TIFF
+  and, since PHP 8.2, HEIF), so WebP falls back to the upload date.
 - **Timezone:** EXIF dates have no zone (`OffsetTimeOriginal` is rarely present), so they are
   *local wall-clock* time. To keep `sort_at` on a single scale, **store every date column as
   `Europe/Prague` wall-clock time**: EXIF as is, and mtime / `client_modified_at` converted
@@ -170,7 +170,7 @@ create duplicates. SQLite write locking is fine at this traffic level.
 - A toggle on the gallery page: **Mřížka | Časová osa**.
 - The grid stays the default; the timeline is a separate page. Changing the default is a later
   product decision (section 10).
-- Month sections, newest first, each with a heading such as "květen 2024" and a count. The
+- Month sections, newest first, each with a heading such as "Květen 2024" and a count. The
   heading is localised with Carbon `locale('cs')->isoFormat('MMMM YYYY')`.
 - A **year/month index** (sticky side list on desktop, a `<select>` on mobile) built from the
   per-month count query. It lets the viewer jump far back without scrolling through everything.

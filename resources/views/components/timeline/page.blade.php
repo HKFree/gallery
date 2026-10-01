@@ -2,9 +2,9 @@
 
 @foreach ($sections as $section)
     <section data-month="{{ $section['month'] }}" class="mb-8">
-        <h2 data-month-heading class="sticky top-0 z-10 -mx-2 mb-3 flex items-baseline gap-2 bg-gray-50/95 px-2 py-2 text-lg font-semibold capitalize backdrop-blur">
+        <h2 data-month-heading class="sticky top-0 z-10 -mx-2 mb-3 flex items-baseline gap-2 bg-gray-50/95 px-2 py-2 text-lg font-semibold backdrop-blur">
             {{ $section['label'] }}
-            <span class="text-sm font-normal normal-case text-gray-400">{{ $section['count'] }}</span>
+            <span class="text-sm font-normal text-gray-400">{{ $section['count'] }}</span>
         </h2>
         <div data-month-images class="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
             @foreach ($section['images'] as $image)

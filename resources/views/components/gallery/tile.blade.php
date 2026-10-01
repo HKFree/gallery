@@ -13,5 +13,14 @@
             </svg>
         </button>
     @endif
-    <figcaption class="truncate px-2 py-1 text-xs text-gray-500" title="{{ $image['name'] }}">{{ $image['name'] }}</figcaption>
+    @isset($image['caption'])
+        <figcaption class="flex items-center gap-1 px-2 py-1 text-xs text-gray-500" title="{{ $image['name'] }}">
+            @if ($image['locked'] ?? false)
+                <x-icon.lock class="h-3 w-3 shrink-0 text-gray-400" />
+            @endif
+            <a href="{{ $image['caption_url'] }}" class="truncate hover:text-emerald-700">{{ $image['caption'] }}</a>
+        </figcaption>
+    @else
+        <figcaption class="truncate px-2 py-1 text-xs text-gray-500" title="{{ $image['name'] }}">{{ $image['name'] }}</figcaption>
+    @endisset
 </figure>

@@ -16,5 +16,5 @@
     @endif
 
     <x-timeline.layout :months="$months" :sections="$sections" :next-url="$nextUrl" :newest-url="$newestUrl"
-                       :url="$timelineUrl" :can-manage="$canManage" />
+                       :url="$timelineUrl" :query="$timelineQuery" :can-manage="$canManage" />
 @endsection

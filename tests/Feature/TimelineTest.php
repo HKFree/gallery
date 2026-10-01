@@ -27,7 +27,7 @@ it('groups images by month, newest first, with Czech headings and month counts',
 
     $this->get(route('gallery.public.timeline', ['area' => 13, 'ap' => 201]))
         ->assertSuccessful()
-        ->assertSeeInOrder(['květen 2024', 'newest.jpg', 'newer.jpg', 'listopad 2023', 'older.jpg'])
+        ->assertSeeInOrder(['Květen 2024', 'newest.jpg', 'newer.jpg', 'Listopad 2023', 'older.jpg'])
         ->assertSee('data-month="2024-05"', escape: false)
         ->assertSee(route('gallery.public.timeline', ['area' => 13, 'ap' => 201]).'?from=2023-11', escape: false);
 });
@@ -37,7 +37,7 @@ it('indexes files found on disk when the timeline is opened', function () {
     Storage::disk('local')->put('gallery/ap/13/201/pub/_trashed_20260101000000_gone.jpg', 'x');
 
     $this->get(route('gallery.public.timeline', ['area' => 13, 'ap' => 201]))
-        ->assertSee('únor 2020')
+        ->assertSee('Únor 2020')
         ->assertSee('copied.jpg')
         ->assertDontSee('gone.jpg');
 });

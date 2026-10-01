@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 /**
  * Pages through indexed gallery images newest first and groups them into month sections.
@@ -92,10 +93,10 @@ class Timeline
     }
 
     /**
-     * Czech month heading, e.g. "květen 2024".
+     * Czech month heading, e.g. "Květen 2024".
      */
     private function label(string $month): string
     {
-        return CarbonImmutable::createFromFormat('!Y-m', $month)->locale('cs')->isoFormat('MMMM YYYY');
+        return Str::ucfirst(CarbonImmutable::createFromFormat('!Y-m', $month)->locale('cs')->isoFormat('MMMM YYYY'));
     }
 }

@@ -7,6 +7,7 @@ use App\Services\GalleryIndex;
 use App\Services\Timeline;
 use App\Services\UserdbService;
 use App\Support\GalleryLinks;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -21,6 +22,46 @@ class TimelineController extends Controller
         private readonly GalleryIndex $index,
         private readonly Timeline $timeline,
     ) {}
+
+    /**
+     * The network timeline: images of every AP gallery, newest first.
+     *
+     * Guests see public galleries only; signed-in users may add the private ("Dokumentace")
+     * galleries with `?priv=1`. Images of APs no longer listed in Userdb are left out, since
+     * their gallery routes would 404.
+     */
+    public function index(Request $request): View
+    {
+        $includePrivate = $request->user() !== null && $request->boolean('priv');
+
+        $aps = $this->userdb->areas()
+            ->flatMap(fn (array $area): array => $area['aps']
+                ->map(fn (array $ap): array => [...$ap, 'area' => ['id' => $area['id'], 'name' => $area['name']]])
+                ->all())
+            ->keyBy('id');
+
+        $images = GalleryImage::query()
+            ->whereIn('visibility', $includePrivate ? ['pub', 'priv'] : ['pub'])
+            ->whereIn('ap_id', $aps->keys()->all());
+
+        return $this->respond(
+            $request,
+            $images,
+            fn (GalleryImage $image): array => [
+                ...GalleryLinks::image($image->visibility, $image->area_id, $image->ap_id, $image->filename),
+                'caption' => $aps[$image->ap_id]['name'],
+                'caption_url' => route($image->visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline', [
+                    'area' => $image->area_id, 'ap' => $image->ap_id,
+                ]),
+                'locked' => $image->visibility === 'priv',
+            ],
+            canManage: false,
+            view: 'timeline.index',
+            url: route('timeline'),
+            query: $includePrivate ? ['priv' => 1] : [],
+            data: ['includePrivate' => $includePrivate],
+        );
+    }
 
     public function showPublic(Request $request, int $area, int $ap): View
     {
@@ -37,7 +78,6 @@ class TimelineController extends Controller
      *
      * The first page reconciles the gallery's index with its directory (capped), so files
      * copied onto the server appear without waiting for the scheduled `gallery:index`.
-     * Requests for further pages (`X-Requested-With`) get just the next page's fragment.
      */
     private function showGallery(Request $request, string $visibility, int $areaId, int $apId): View
     {
@@ -49,43 +89,49 @@ class TimelineController extends Controller
             ? 0
             : $this->index->reconcileAp($visibility, $areaId, $apId, self::RECONCILE_LIMIT)['pending'];
 
-        $query = GalleryImage::query()->where(['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId]);
-        $from = $request->string('from')->toString() ?: null;
-        $months = $this->timeline->months($query);
-        $page = $this->timeline->page($query, $from);
-        $canManage = Gate::allows('manage-gallery');
+        return $this->respond(
+            $request,
+            GalleryImage::query()->where(['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId]),
+            fn (GalleryImage $image): array => GalleryLinks::image($visibility, $areaId, $apId, $image->filename),
+            canManage: Gate::allows('manage-gallery'),
+            view: 'gallery.timeline',
+            url: route($visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline', ['area' => $areaId, 'ap' => $apId]),
+            data: ['visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending],
+        );
+    }
 
-        $sections = $this->timeline->sections($page, $months, fn (GalleryImage $image): array => GalleryLinks::image(
-            $visibility, $areaId, $apId, $image->filename,
-        ));
+    /**
+     * Render a timeline page for the given images. Script requests for further pages
+     * (`X-Requested-With`) get just the next page's fragment.
+     *
+     * @param  Builder<GalleryImage>  $images
+     * @param  callable(GalleryImage): array<string, mixed>  $tile
+     * @param  array<string, int|string>  $query  extra query parameters every timeline link keeps
+     * @param  array<string, mixed>  $data  extra view data
+     */
+    private function respond(Request $request, Builder $images, callable $tile, bool $canManage, string $view, string $url, array $query = [], array $data = []): View
+    {
+        $from = $request->string('from')->toString() ?: null;
+        $months = $this->timeline->months($images);
+        $page = $this->timeline->page($images, $from);
+        $sections = $this->timeline->sections($page, $months, $tile);
 
         if ($request->ajax()) {
             return view('timeline.fragment', ['sections' => $sections, 'nextUrl' => $page->nextPageUrl(), 'canManage' => $canManage]);
         }
 
-        $route = $visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline';
+        $atNewest = $page->previousCursor() === null
+            && (! $this->timeline->isMonth($from) || $months->isEmpty() || $from >= $months->first()['month']);
 
-        return view('gallery.timeline', [
-            'visibility' => $visibility,
-            'area' => $ap['area'],
-            'ap' => $ap,
+        return view($view, [
+            ...$data,
             'months' => $months,
             'sections' => $sections,
             'nextUrl' => $page->nextPageUrl(),
-            'newestUrl' => $this->isAtNewest($page->previousCursor() !== null, $from, $months->first()['month'] ?? null)
-                ? null
-                : route($route, ['area' => $areaId, 'ap' => $apId]),
-            'timelineUrl' => route($route, ['area' => $areaId, 'ap' => $apId]),
-            'pending' => $pending,
+            'newestUrl' => $atNewest ? null : $url.($query === [] ? '' : '?'.http_build_query($query)),
+            'timelineUrl' => $url,
+            'timelineQuery' => $query,
             'canManage' => $canManage,
         ]);
-    }
-
-    /**
-     * Whether the page starts at the newest image (so no "Novější" link is needed).
-     */
-    private function isAtNewest(bool $hasPreviousPage, ?string $from, ?string $newestMonth): bool
-    {
-        return ! $hasPreviousPage && ($from === null || ! $this->timeline->isMonth($from) || $newestMonth === null || $from >= $newestMonth);
     }
 }

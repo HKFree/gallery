@@ -23,7 +23,7 @@
             @foreach ($yearMonths as $month)
                 <li>
                     <a href="{{ $url }}?{{ http_build_query([...$query, 'from' => $month['month']]) }}" data-month-link="{{ $month['month'] }}"
-                       class="flex justify-between rounded px-2 py-1 text-sm text-gray-600 capitalize hover:bg-gray-100 hover:text-gray-900 aria-[current=true]:bg-gray-900 aria-[current=true]:text-white">
+                       class="flex justify-between rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900 aria-[current=true]:bg-gray-900 aria-[current=true]:text-white">
                         <span>{{ \Illuminate\Support\Str::before($month['label'], ' ') }}</span>
                         <span class="text-gray-400">{{ $month['count'] }}</span>
                     </a>
