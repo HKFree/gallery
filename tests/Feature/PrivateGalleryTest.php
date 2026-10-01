@@ -29,8 +29,10 @@ it('streams private images only to authenticated users', function () {
 
     $this->get($url)->assertRedirect(route('login'));
 
-    $this->actingAs(User::factory()->create())
+    $response = $this->actingAs(User::factory()->create())
         ->get($url)->assertSuccessful();
+
+    expect($response->headers->get('Cache-Control'))->toContain('private')->not->toContain('public');
 });
 
 it('does not serve trashed private files', function () {

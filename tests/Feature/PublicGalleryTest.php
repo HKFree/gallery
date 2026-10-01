@@ -36,6 +36,21 @@ it('hides manage controls from guests', function () {
         ->assertDontSee('data-delete-url', escape: false);
 });
 
+it('serves public images with cache headers and answers revalidation with 304', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'data');
+
+    $url = route('gallery.public.image', ['area' => 13, 'ap' => 201, 'filename' => 'a.jpg']);
+
+    $response = $this->get($url)->assertSuccessful();
+    $etag = $response->headers->get('ETag');
+
+    expect($response->headers->get('Cache-Control'))->toContain('public')->toContain('max-age=86400')
+        ->and($etag)->not->toBeEmpty()
+        ->and($response->headers->get('Last-Modified'))->not->toBeEmpty();
+
+    $this->get($url, ['If-None-Match' => $etag])->assertStatus(304);
+});
+
 it('returns 404 for an unknown AP', function () {
     $this->get(route('gallery.public', ['area' => 13, 'ap' => 999]))
         ->assertNotFound();

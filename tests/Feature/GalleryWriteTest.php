@@ -74,6 +74,54 @@ it('rejects an assembled file that is not a valid image and stores nothing', fun
     expect(Storage::disk('local')->files('gallery/tmp'))->toBeEmpty();
 });
 
+it('rejects chunks that arrive out of order or are duplicated', function (array $sequence) {
+    Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
+
+    $uploadId = (string) Str::uuid();
+    $url = route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]);
+    $post = fn (int $index) => $this->post($url, [
+        'upload_id' => $uploadId,
+        'chunk_index' => $index,
+        'total_chunks' => 3,
+        'filename' => 'delta.jpg',
+        'chunk' => UploadedFile::fake()->createWithContent('chunk', 'piece'),
+    ], ['Accept' => 'application/json']);
+
+    $rejected = array_pop($sequence);
+
+    foreach ($sequence as $index) {
+        $post($index)->assertOk()->assertJson(['status' => 'pending']);
+    }
+
+    $post($rejected)
+        ->assertStatus(422)
+        ->assertJson(['message' => 'Chunk out of order or upload session expired.']);
+})->with([
+    'skipped chunk' => [[0, 2]],
+    'duplicated chunk' => [[0, 1, 1]],
+]);
+
+it('stores an image too large to thumbnail without a thumbnail instead of crashing', function () {
+    Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
+
+    // A PNG whose header claims 20000x20000 px: decoding it would need gigabytes of memory.
+    $chunk = fn (string $type, string $data): string => pack('N', strlen($data)).$type.$data.pack('N', crc32($type.$data));
+    $png = "\x89PNG\r\n\x1a\n"
+        .$chunk('IHDR', pack('NNCCCCC', 20000, 20000, 8, 6, 0, 0, 0))
+        .$chunk('IDAT', str_repeat("\0", 64))
+        .$chunk('IEND', '');
+
+    uploadGalleryChunks('pub', 13, 201, 'huge.png', $png)
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'filename' => 'huge.png']);
+
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/huge.png');
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/thumbs/huge.png');
+    expect(Storage::disk('local')->files('gallery/tmp'))->toBeEmpty();
+});
+
 it('rejects a chunk larger than the per-request limit', function () {
     Storage::fake('local');
 
