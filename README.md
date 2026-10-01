@@ -9,6 +9,8 @@ right role can upload and remove photos directly in the browser.
 - **Role-based management** — uploading and deleting is restricted to configured Keycloak
   realm roles (e.g. `SO`, `ZSO`, `PREDSTAVENSTVO`, `VV`).
 - **Area / AP data** is pulled live from the HKFree Userdb API.
+- **Timeline** — photos grouped by month, per AP and across the whole network, dated by EXIF
+  where available. See the [timeline documentation](docs/timeline/README.md).
 - **Images stream through the application** from a private disk, so private documentation
   is never directly reachable; thumbnails are generated on upload, or on demand when missing.
 
