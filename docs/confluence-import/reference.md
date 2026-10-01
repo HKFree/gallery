@@ -12,6 +12,7 @@ Všechny stránky jsou jen pro správce galerie (role z `GALLERY_ADMIN_ROLES`).
 | `/gal/area/{area}/ap/{ap}/{pub\|priv}/description` | POST | `gallery.description` | směr (`filename`, `heading`, `source` = `manual` nebo `similarity`), typ scény (`scene`, `score`), zakrytí výhledu (`obstruction`, `obstruction_kind`) |
 | `/gal/area/{area}/ap/{ap}/{pub\|priv}/embedding` | POST | `gallery.embedding` | otisk fotky (`filename`, `model`, `vector` = base64 z float32) |
 | `/gal/area/{area}/ap/{ap}/{pub\|priv}/suggestions` | POST | `gallery.suggestions.confirm` | potvrzení všech návrhů směru galerie |
+| `/pokryti` | GET | `coverage` | přehled pokrytí výhledů všech AP (veřejné galerie) |
 | `/gal/area/{area}/ap/{ap}/{pub\|priv}/analysis-queue` | GET | `gallery.analysis-queue` | fotky, kterým něco chybí (JSON); `?import=` jen fotky importu, `?files[]=` jen dané fotky |
 
 Omezení počtu požadavků: náhled 30 za minutu, spuštění importu 10 za minutu.
@@ -127,6 +128,17 @@ místo, ne směr.
 | Nejmenší podobnost | 0,7 |
 | Náskok před nejpodobnější fotkou s jiným směrem (víc než 25° jinak) | aspoň 0,05 |
 | Zobrazení | jen správcům; do popisu se směr dostane až po potvrzení |
+
+### Pokrytí směrů
+
+| Pravidlo | Hodnota |
+| --- | --- |
+| Směry | 8 výsečí po 45° (S, SV, V, JV, J, JZ, Z, SZ); fotka patří do nejbližší |
+| Počítané fotky | fotky galerie se známým směrem, které jsou v indexu časové osy (ne fotky v koši) |
+| Aktuální | nejnovější fotka směru je mladší než 3 roky (podle data na časové ose) |
+| Sousední AP | AP se souřadnicemi do 15 km, v dané výseči, nejbližší první |
+| Zobrazení u galerie | správcům vždy, ostatním až když má aspoň jedna fotka směr |
+| Přehled všech AP | jen správcům; řazeno podle počtu pokrytých, pak aktuálních směrů |
 
 ### Zakrytí výhledu
 

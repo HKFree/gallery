@@ -84,6 +84,17 @@ obzor, se počítá jako překážka, i když jde o vzdálený les.
 U fotek bez oblohy (například rozvaděč) a u fotek antén, rozvaděčů a střech se zakrytí
 neuvádí — není tam žádný výhled, který by šlo hodnotit.
 
+## Proč ukazovat chybějící směry
+
+Výhledy z AP slouží hlavně k plánování spojů: z fotky je vidět, kam z AP dohlédneme a co
+v cestě stojí. Proto je důležité vědět i to, co *nevíme* — kterým směrem fotka chybí nebo je
+stará. Stromy rostou a staví se nové domy, takže výhled starý deset let už nemusí platit;
+proto se směry starší než 3 roky ukazují zvlášť.
+
+Chybějící směry jsou doplněné o AP, která v nich leží, protože výhled na sousední AP je
+pro síť nejcennější. Přehled všech AP pak funguje jako seznam úkolů: nahoře jsou AP, kde
+nejvíc chybí.
+
 ## Proč analýza běží v prohlížeči
 
 Server má na modely jen 1–2 GB paměti a každá další služba je starost navíc. Prohlížeč správce

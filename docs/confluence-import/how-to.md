@@ -10,6 +10,7 @@ Návody na konkrétní úkoly. Předpokládají, že jste prošli [návod](tutor
 - [Zopakovat import, který skončil chybou](#zopakovat-import-který-skončil-chybou)
 - [Nastavit nebo opravit směr pohledu](#nastavit-nebo-opravit-směr-pohledu)
 - [Doplnit směr podle podobných fotek](#doplnit-směr-podle-podobných-fotek)
+- [Zjistit, které výhledy chybí](#zjistit-které-výhledy-chybí)
 - [Analyzovat starší fotky](#analyzovat-starší-fotky)
 - [Analyzovat fotky hned po nahrání](#analyzovat-fotky-hned-po-nahrání)
 - [Nahrávat fotky tak, aby se směr doplnil sám](#nahrávat-fotky-tak-aby-se-směr-doplnil-sám)
@@ -72,6 +73,24 @@ Směr smažete křížkem uprostřed kompasu.
 
 Návrhy se počítají ze všech fotek AP, veřejných i z Dokumentace, a přepočítají se pokaždé,
 když přibude fotka se známým směrem. Čím víc směrů nastavíte, tím víc návrhů dostanete.
+
+## Zjistit, které výhledy chybí
+
+**U jednoho AP:** v galerii AP je nad fotkami růžice s osmi směry. Zelená výseč znamená
+aktuální fotku (mladší než 3 roky), oranžová jen starší fotky a šedá chybějící směr. Pod
+textem **Chybí** jsou chybějící směry a u nich AP, která v tom směru leží — výhled na ně je
+pro síť nejcennější.
+
+![Pokrytí směrů u AP](images/coverage-kuncice.png)
+
+**U všech AP:** v záhlaví klikněte na **Pokrytí výhledů** (jen pro správce). Tabulka ukazuje
+všechna AP od těch, kterým chybí nejvíc směrů, a u chybějících směrů nejbližší AP v tom
+směru. Hodí se jako seznam úkolů pro příští výjezd s foťákem.
+
+![Přehled pokrytí výhledů](images/coverage-overview.png)
+
+Počítají se jen fotky se známým směrem. Pokud AP fotky má, ale růžice je šedá, nastavte
+fotkám směr (kompasem, nebo potvrzením návrhů).
 
 ## Analyzovat starší fotky
 

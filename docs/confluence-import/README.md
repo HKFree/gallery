@@ -5,7 +5,7 @@ Správci galerie mohou vložit odkaz na stránku z fotoarchivu na
 galerie AP. Každá fotka — naimportovaná i nahraná — může mít krátký popis: z jakého AP a
 kterým směrem se díváme, které další AP v tom směru leží, co je na fotce za scénu a jak moc
 výhled zakrývají stromy nebo jiné překážky. Směr umí galerie navrhnout podle podobných fotek
-téhož AP.
+téhož AP a ukáže, ze kterých směrů výhledy chybí.
 
 ![Hotový import](images/import-done.png)
 
