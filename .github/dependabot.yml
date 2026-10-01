@@ -1,0 +1,50 @@
+# Dependabot opens pull requests that bump dependencies; the Tests workflow runs on each of them.
+#
+# Cooldown: a new release is only proposed after it has been out for a while, so broken or
+# compromised releases are usually caught (and yanked) upstream before they reach us.
+# It applies to version updates only; security updates are still proposed immediately.
+#
+# Minor and patch bumps are grouped into one pull request per ecosystem; majors come one by one.
+
+version: 2
+
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      composer-minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      github-actions:
+        patterns: ["*"]
