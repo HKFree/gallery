@@ -9,7 +9,9 @@ Návody na konkrétní úkoly. Předpokládají, že jste prošli [návod](tutor
 - [Doplnit fotky, které na stránce přibyly](#doplnit-fotky-které-na-stránce-přibyly)
 - [Zopakovat import, který skončil chybou](#zopakovat-import-který-skončil-chybou)
 - [Nastavit nebo opravit směr pohledu](#nastavit-nebo-opravit-směr-pohledu)
-- [Doplnit typ scény ke starším fotkám](#doplnit-typ-scény-ke-starším-fotkám)
+- [Doplnit směr podle podobných fotek](#doplnit-směr-podle-podobných-fotek)
+- [Analyzovat starší fotky](#analyzovat-starší-fotky)
+- [Analyzovat fotky hned po nahrání](#analyzovat-fotky-hned-po-nahrání)
 - [Nahrávat fotky tak, aby se směr doplnil sám](#nahrávat-fotky-tak-aby-se-směr-doplnil-sám)
 
 **Pro správce serveru**
@@ -28,6 +30,10 @@ Návody na konkrétní úkoly. Předpokládají, že jste prošli [návod](tutor
 4. Zkontrolujte náhled a klikněte na **Importovat**.
 
 Přijímané tvary adres najdete v [referenční příručce](reference.md#podporované-adresy).
+
+Importovat jde i blogový příspěvek z prostoru (adresa s `/blog/rok/měsíc/den/`). Pokud stránka
+nemá makro **Galerie**, naimportují se i obrázky, které jsou jen v přílohách stránky a na
+stránce samotné nejsou zobrazené; náhled je uvede jako „jen v přílohách stránky“.
 
 ## Naimportovat fotky z rozcestníku
 
@@ -56,11 +62,28 @@ ty, které selhaly.
 
 Směr smažete křížkem uprostřed kompasu.
 
-## Doplnit typ scény ke starším fotkám
+## Doplnit směr podle podobných fotek
 
-V galerii AP klikněte pod oblastí pro nahrávání na **Rozpoznat typ scény**. Rozpoznají se jen
-fotky, které typ scény ještě nemají. Nechte stránku otevřenou, dokud se neobjeví **Hotovo**;
-pak ji obnovte.
+1. Nastavte směr několika fotkám AP — kompasem, nebo je pojmenujte se směrem v názvu.
+2. Pokud ostatní fotky ještě nejsou analyzované, klikněte na **Analyzovat fotky**.
+3. Obnovte stránku. Fotky, které se zřetelně podobají fotce se známým směrem, mají řádek
+   **Návrh: …**.
+4. Potvrďte je jednotlivě (**Potvrdit**), nebo všechny najednou (**Potvrdit návrhy směru**).
+
+Návrhy se počítají ze všech fotek AP, veřejných i z Dokumentace, a přepočítají se pokaždé,
+když přibude fotka se známým směrem. Čím víc směrů nastavíte, tím víc návrhů dostanete.
+
+## Analyzovat starší fotky
+
+V galerii AP klikněte pod oblastí pro nahrávání na **Analyzovat fotky**. Analyzují se jen
+fotky, u kterých ještě něco chybí (typ scény, zakrytí výhledu nebo otisk pro návrhy směru).
+Nechte stránku otevřenou, dokud se neobjeví **Hotovo**; pak ji obnovte.
+
+## Analyzovat fotky hned po nahrání
+
+Zaškrtněte pod oblastí pro nahrávání **Po nahrání fotky analyzovat**. Po nahrání se nové fotky
+nejdřív analyzují a teprve potom se stránka obnoví. Volba se pamatuje ve vašem prohlížeči.
+Poprvé se stahují modely (asi 120 MB), proto je volba ve výchozím stavu vypnutá.
 
 ## Nahrávat fotky tak, aby se směr doplnil sám
 

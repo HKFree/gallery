@@ -58,6 +58,6 @@
         </form>
     @endif
     @isset($image['description'])
-        <p data-description class="line-clamp-2 px-2 pb-1.5 text-xs leading-snug text-gray-600">{{ $image['description'] }}</p>
+        <p data-description class="line-clamp-3 px-2 pb-1.5 text-xs leading-snug text-gray-600">{{ $image['description'] }}</p>
     @endisset
 </figure>

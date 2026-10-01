@@ -19,7 +19,7 @@
             <p data-dropzone-status class="text-xs text-gray-400"></p>
         </div>
     </div>
-    <p class="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
+    <div class="mt-2 flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm">
         <label class="mr-auto inline-flex cursor-pointer items-center gap-1.5 text-gray-600"
                title="Po nahrání rozpozná typ scény, zakrytí výhledu a podobné fotky pro návrhy směru. Poprvé se stáhne asi 120 MB.">
             <input type="checkbox" data-analyse-after-upload class="rounded border-gray-300 text-emerald-700">
@@ -34,5 +34,5 @@
         <x-gallery.photo-analysis :area="$area" :ap="$ap" :visibility="$visibility" />
         <a href="{{ route('confluence.import.create', ['visibility' => $visibility, 'area' => $area['id'], 'ap' => $ap['id']]) }}"
            class="font-medium text-emerald-700 hover:text-emerald-800">Import z Confluence</a>
-    </p>
+    </div>
 </div>

@@ -1,7 +1,7 @@
 # Návod: první import z Confluence
 
-V tomto návodu naimportujete fotky z jedné stránky fotoarchivu do galerie AP, necháte
-rozpoznat typ scény a jedné fotce nastavíte směr pohledu. Potřebujete účet s rolí správce
+V tomto návodu naimportujete fotky z jedné stránky fotoarchivu do galerie AP, necháte je
+analyzovat, jedné fotce nastavíte směr pohledu a potvrdíte směr, který galerie navrhne. Potřebujete účet s rolí správce
 galerie. Zabere to pár minut.
 
 ## 1. Najděte stránku s fotkami
@@ -36,16 +36,17 @@ Až import doběhne, uvidíte počet naimportovaných fotek a případné chyby:
 
 ![Hotový import](images/import-done.png)
 
-## 5. Nechte rozpoznat typ scény
+## 5. Nechte fotky analyzovat
 
-Na stránce hotového importu klikněte na **Rozpoznat typ scény**. Model běží přímo ve vašem
-prohlížeči; poprvé se stáhne asi 90 MB, potom trvá jedna fotka zlomek sekundy. Počkejte, až
-se objeví **Hotovo**.
+Na stránce hotového importu klikněte na **Analyzovat fotky**. Modely běží přímo ve vašem
+prohlížeči; poprvé se stáhne asi 120 MB, potom trvá jedna fotka zlomek sekundy. Analýza
+rozpozná typ scény, změří, jak moc výhled zakrývají stromy, a spočítá „otisk“ fotky pro
+hledání podobných fotek. Počkejte, až se objeví **Hotovo**.
 
 ## 6. Prohlédněte si fotky na časové ose
 
 Klikněte na **Zobrazit na časové ose**. Fotky jsou zařazené do měsíce, kdy byly pořízené
-(nebo nahrané do Confluence), a pod fotkami, u kterých si byl model dost jistý, je typ scény:
+(nebo nahrané do Confluence), a pod fotkami je typ scény a zakrytí výhledu:
 
 ![Naimportované fotky na časové ose](images/import-timeline.png)
 
@@ -60,8 +61,20 @@ Popis pod fotkou se hned změní. Pokud v tom směru leží jiné AP, popis ho j
 vzdáleností, například „Výhled z AP HK-Centrum na SV (45°) — směrem AP HK-Slezské Předměstí
 (2,5 km)“.
 
+## 8. Potvrďte navržený směr
+
+Když mají některé fotky AP směr nastavený, galerie navrhne směr i ostatním fotkám téhož
+výhledu — třeba stejnému pohledu vyfocenému v zimě nebo o pár let později. Pod takovou fotkou
+je oranžový řádek **Návrh: SV (45°) Potvrdit**:
+
+![Navržené směry a zakrytí výhledu](images/suggestions-and-quality.png)
+
+Klikněte na **Potvrdit**, nebo potvrďte všechny návrhy najednou tlačítkem
+**Potvrdit návrhy směru** nad fotkami. Návrh, který nesedí, prostě nepotvrzujte a nastavte
+směr kompasem.
+
 ## Co jste se naučili
 
-Naimportovali jste stránku z Confluence, nechali rozpoznat typ scény a ručně nastavili směr
-pohledu. Další úkoly najdete v [postupech](how-to.md); proč popisy vypadají tak, jak
+Naimportovali jste stránku z Confluence, nechali fotky analyzovat, ručně nastavili směr
+pohledu a potvrdili navržený směr. Další úkoly najdete v [postupech](how-to.md); proč popisy vypadají tak, jak
 vypadají, vysvětluje [vysvětlení](explanation.md).

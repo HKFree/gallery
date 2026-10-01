@@ -44,15 +44,55 @@ Fotky nahrané do galerie přímo z telefonu směr obvykle mají v EXIF.
 Ručně nastavený směr se nikdy nepřepíše. Údaje pro popis jsou uložené zvlášť od indexu časové
 osy, který se může kdykoli přestavět, takže práce správců přežije i přeindexování.
 
-## Proč rozpoznávání scén běží v prohlížeči
+## Jak galerie navrhuje směr
 
-Server má na model jen 1–2 GB paměti a každá další služba je starost navíc. Prohlížeč správce
-model zvládne bez potíží: knihovna Transformers.js spustí model CLIP (asi 90 MB, stáhne se
-jednou a pak se drží v mezipaměti prohlížeče) a jedna fotka trvá zlomek sekundy — při zkoušce
-17 fotek za 15 sekund v Chromiu a 85 fotek za 33 sekund ve Firefoxu, včetně stažení modelu.
+Z fotky samotné se světová strana vyčíst nedá. Archiv má ale jednu užitečnou vlastnost: z
+každého AP se fotí pořád tytéž výhledy, rok co rok (například `vyhledy_karosarna_2014`, `2015`,
+`2020`, `2022`, `2025`, `2026`). Stejný výhled vypadá podobně i v jiném roce nebo ročním období
+— stejné střechy, stejná silnice, stejný dům s červenou střechou.
 
-Návštěvníci galerie knihovnu ani model nestahují: načtou se teprve po kliknutí na
-**Rozpoznat typ scény**. Fotky při tom neopouštějí galerii; prohlížeč čte náhledy, které správce
+Galerie proto každé fotce spočítá „otisk“ (model DINOv2, navržený právě pro poznávání stejných
+míst a předmětů) a fotku bez směru porovná s fotkami téhož AP, které směr mají. Pokud je
+nejpodobnější fotka dost podobná a zřetelně podobnější než jakákoli fotka s jiným směrem,
+galerie navrhne její směr.
+
+Ověřeno na stránce **Výhledy z AP Kunčice**, kde jsou fotky pojmenované podle směru a
+některé jsou focené v létě i v zimě: všechny tři zimní fotky dostaly správný návrh podle
+letního protějšku. Je to malý vzorek; proto je návrh jen návrh a do popisu se dostane až po
+potvrzení správcem.
+
+Návrhy se počítají na serveru z uložených otisků. Když správce nastaví směr další fotce,
+návrhy pro ostatní se hned přepočítají — není potřeba znovu nic analyzovat.
+
+## Jak se měří zakrytí výhledu
+
+U výhledu z AP nejde jen o to, kam se díváme, ale i jestli je vidět daleko. Model SegFormer
+rozdělí fotku na oblasti — obloha, strom, budova, zeď, plot — a galerie pak hledá překážky,
+které výhled zakrývají.
+
+Prosté „kolik je na fotce stromů“ nestačí: vzdálený les na obzoru by se počítal stejně jako
+smrk těsně před objektivem. Rozhoduje proto obrys oblohy. Vzdálená řada stromů leží na
+obzoru, zatímco strom před objektivem vyčnívá vysoko do oblohy. Galerie najde obzor (kam
+dosahuje obloha ve většině fotky) a za zakryté počítá ty části šířky, kde nad něj výrazně
+vyčnívá strom, keř, zeď, plot nebo sloup.
+
+Na vzorku z archivu to odpovídá tomu, co je na fotkách vidět: otevřené výhledy vycházejí
+„bez překážek“, zarostlý výhled kolem 55 %, a tentýž výhled z Kunčic kolem 20 % v létě a
+pod 10 % v zimě, kdy stromy nemají listí. Slabé místo: zalesněný kopec, který sám tvoří
+obzor, se počítá jako překážka, i když jde o vzdálený les.
+
+U fotek bez oblohy (například rozvaděč) a u fotek antén, rozvaděčů a střech se zakrytí
+neuvádí — není tam žádný výhled, který by šlo hodnotit.
+
+## Proč analýza běží v prohlížeči
+
+Server má na modely jen 1–2 GB paměti a každá další služba je starost navíc. Prohlížeč správce
+modely zvládne bez potíží: knihovna Transformers.js spustí tři malé modely (dohromady asi
+120 MB, stáhnou se jednou a pak se drží v mezipaměti prohlížeče) a jedna fotka trvá zlomek
+sekundy — při zkoušce 16 fotek za 21 sekund v Chromiu včetně stažení modelů.
+
+Návštěvníci galerie knihovnu ani modely nestahují: načtou se teprve po kliknutí na
+**Analyzovat fotky**, nebo po nahrání s volbou **Po nahrání fotky analyzovat**. Fotky při tom neopouštějí galerii; prohlížeč čte náhledy, které správce
 stejně vidí.
 
 Model se zhruba ve třetině případů splete, proto se typ scény ukazuje jen tehdy, když si je

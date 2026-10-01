@@ -14,7 +14,8 @@ right role can upload and remove photos directly in the browser.
 - **Import from Confluence** — managers paste a page URL from the photo archive
   (`doc.hkfree.org`) into a gallery and its photos are imported in the background.
 - **Photo descriptions** — which AP a view is taken from, its direction and the other APs in
-  view, plus a scene type recognised in the manager's browser. See the
+  view, plus a scene type and how much trees or obstacles block the view, recognised in the
+  manager's browser. Directions can be suggested from similar photos of the same AP. See the
   [import and descriptions documentation](docs/confluence-import/README.md) (Czech).
 - **Images stream through the application** from a private disk, so private documentation
   is never directly reachable; thumbnails are generated on upload, or on demand when missing.

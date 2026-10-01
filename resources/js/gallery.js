@@ -240,7 +240,7 @@ document.addEventListener('submit', async (e) => {
             if (!text) {
                 text = document.createElement('p');
                 text.dataset.description = '';
-                text.className = 'line-clamp-2 px-2 pb-1.5 text-xs leading-snug text-gray-600';
+                text.className = 'line-clamp-3 px-2 pb-1.5 text-xs leading-snug text-gray-600';
                 figure.append(text);
             }
             text.textContent = description;
