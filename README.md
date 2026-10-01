@@ -10,7 +10,7 @@ right role can upload and remove photos directly in the browser.
   realm roles (e.g. `SO`, `ZSO`, `PREDSTAVENSTVO`, `VV`).
 - **Area / AP data** is pulled live from the HKFree Userdb API.
 - **Images stream through the application** from a private disk, so private documentation
-  is never directly reachable; thumbnails are generated on demand.
+  is never directly reachable; thumbnails are generated on upload, or on demand when missing.
 
 ## Tech stack
 

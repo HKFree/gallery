@@ -196,7 +196,31 @@ class GalleryStorage
     }
 
     /**
-     * Generate a thumbnail for an already-stored image.
+     * Ensure an image has a thumbnail, generating it on demand when it is missing (e.g. a
+     * previous generation failed). Returns false when no thumbnail exists or can be made.
+     */
+    public function ensureThumbnail(string $visibility, int $areaId, int $apId, string $filename): bool
+    {
+        if ($this->exists($visibility, $areaId, $apId, $filename, thumb: true)) {
+            return true;
+        }
+
+        if (! $this->isImage($filename) || ! $this->exists($visibility, $areaId, $apId, $filename)) {
+            return false;
+        }
+
+        $original = $this->disk()->path($this->path($visibility, $areaId, $apId, $filename));
+
+        return $this->generateThumbnail(
+            new File($original),
+            $this->path($visibility, $areaId, $apId, $filename, thumb: true),
+            Str::lower(pathinfo($filename, PATHINFO_EXTENSION)),
+            ['visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => basename($filename)],
+        );
+    }
+
+    /**
+     * Generate a thumbnail for an already-stored image, returning whether it was stored.
      *
      * A thumbnail failure must not lose the stored original, so errors are logged, not thrown.
      * Decoding a huge image can exhaust memory, which is a fatal (uncatchable) error, so the
@@ -204,7 +228,7 @@ class GalleryStorage
      *
      * @param  array<string, mixed>  $context
      */
-    private function generateThumbnail(SplFileInfo $file, string $thumbPath, string $extension, array $context): void
+    private function generateThumbnail(SplFileInfo $file, string $thumbPath, string $extension, array $context): bool
     {
         $previousMemoryLimit = ini_get('memory_limit');
 
@@ -212,16 +236,18 @@ class GalleryStorage
             if (! $this->reserveDecodingMemory($file->getRealPath())) {
                 Log::warning('Gallery: image too large to generate a thumbnail', $context);
 
-                return;
+                return false;
             }
 
             $thumbnail = Image::decode($file->getRealPath())
                 ->scaleDown(width: self::THUMBNAIL_WIDTH)
                 ->encode(new FileExtensionEncoder($extension, quality: 80));
 
-            $this->disk()->put($thumbPath, (string) $thumbnail);
+            return $this->disk()->put($thumbPath, (string) $thumbnail);
         } catch (\Throwable $e) {
             Log::error('Gallery: failed to generate thumbnail', [...$context, 'exception' => $e->getMessage()]);
+
+            return false;
         } finally {
             ini_set('memory_limit', (string) $previousMemoryLimit);
         }
@@ -245,7 +271,8 @@ class GalleryStorage
             return true;
         }
 
-        $required = memory_get_usage(true) + $size[0] * $size[1] * self::DECODE_BYTES_PER_PIXEL;
+        $pixels = $size[0] * $size[1] * $this->frameCount($path, $size[2]);
+        $required = memory_get_usage(true) + $pixels * self::DECODE_BYTES_PER_PIXEL;
 
         if ($required <= $limit) {
             return true;
@@ -256,6 +283,35 @@ class GalleryStorage
         }
 
         return ini_set('memory_limit', (string) $required) !== false;
+    }
+
+    /**
+     * Number of frames the decoder will hold in memory: animated GIFs decode every frame at
+     * full canvas size. Frames are counted by their Graphic Control Extension blocks, reading
+     * in blocks so a huge file is never loaded at once. Other formats count as one frame.
+     */
+    private function frameCount(string $path, int $imageType): int
+    {
+        if ($imageType !== IMAGETYPE_GIF || ($handle = fopen($path, 'rb')) === false) {
+            return 1;
+        }
+
+        $frames = 0;
+        $carry = '';
+
+        try {
+            while (! feof($handle)) {
+                $buffer = $carry.fread($handle, 1024 * 1024);
+                $frames += preg_match_all('/\x00\x21\xF9\x04.{4}\x00[\x2C\x21]/s', $buffer);
+
+                // Keep one byte less than a full match so a block split across reads is counted once.
+                $carry = substr($buffer, -9);
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return max(1, $frames);
     }
 
     /**

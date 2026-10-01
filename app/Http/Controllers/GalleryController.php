@@ -156,6 +156,7 @@ class GalleryController extends Controller
 
     /**
      * Stream an image (or its thumbnail) from the private disk, 404 when missing or trashed.
+     * A missing thumbnail is generated on demand, falling back to the original image.
      *
      * Responses are cacheable (publicly for `pub`, browser-only for `priv`) and carry an
      * ETag / Last-Modified pair, so revalidation answers 304 without streaming the file.
@@ -167,6 +168,9 @@ class GalleryController extends Controller
         $filename = basename($filename);
 
         abort_if($this->storage->isTrashed($filename), 404);
+
+        // Fall back to the original when a thumbnail is missing and cannot be generated.
+        $thumb = $thumb && $this->storage->ensureThumbnail($visibility, $areaId, $apId, $filename);
 
         $disk = Storage::disk('local');
         $path = $this->storage->path($visibility, $areaId, $apId, $filename, $thumb);
