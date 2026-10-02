@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Lottery;
@@ -273,14 +274,28 @@ class GalleryStorage
             return false;
         }
 
-        $original = $this->disk()->path($this->path($visibility, $areaId, $apId, $filename));
+        $path = $this->path($visibility, $areaId, $apId, $filename);
 
-        return $this->generateThumbnail(
-            new File($original),
+        // A failed attempt is remembered (per file version), so public thumbnail requests can't
+        // make the server decode a broken or huge image over and over.
+        $failed = 'gallery:thumbnail-failed:'.md5($path.'|'.$this->disk()->lastModified($path));
+
+        if (Cache::has($failed)) {
+            return false;
+        }
+
+        $generated = $this->generateThumbnail(
+            new File($this->disk()->path($path)),
             $this->path($visibility, $areaId, $apId, $filename, thumb: true),
             Str::lower(pathinfo($filename, PATHINFO_EXTENSION)),
             ['visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => basename($filename)],
         );
+
+        if (! $generated) {
+            Cache::put($failed, true, now()->addDay());
+        }
+
+        return $generated;
     }
 
     /**

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -75,4 +76,15 @@ it('falls back to the original when a thumbnail cannot be generated', function (
 it('returns 404 for an unknown AP', function () {
     $this->get(route('gallery.public', ['area' => 13, 'ap' => 999]))
         ->assertNotFound();
+});
+
+it('does not retry a failed thumbnail on every request', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/broken.jpg', 'not decodable');
+    Log::spy();
+    $url = route('gallery.public.thumb', ['area' => 13, 'ap' => 201, 'filename' => 'broken.jpg']);
+
+    $this->get($url)->assertSuccessful();
+    $this->get($url)->assertSuccessful();
+
+    Log::shouldHaveReceived('warning')->once();
 });

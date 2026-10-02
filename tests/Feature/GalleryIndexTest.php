@@ -137,3 +137,19 @@ it('dates files by mtime in gallery time, across a month boundary', function () 
         ->uploaded_at->format('Y-m-d H:i')->toBe('2024-02-01 00:30')
         ->sort_month->toBe('2024-02');
 });
+
+it('rejects an out-of-range browser date before storing anything', function () {
+    $this->actingAs(User::factory()->admin()->create());
+    $image = UploadedFile::fake()->image('a.jpg');
+
+    $this->post(route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]), [
+        'upload_id' => (string) Str::uuid(),
+        'chunk_index' => 0,
+        'total_chunks' => 1,
+        'filename' => 'a.jpg',
+        'client_modified_at' => '9223372036854775807',
+        'chunk' => UploadedFile::fake()->createWithContent('chunk', file_get_contents($image->getRealPath())),
+    ], ['Accept' => 'application/json'])->assertJsonValidationErrors('client_modified_at');
+
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/a.jpg');
+});

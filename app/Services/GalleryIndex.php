@@ -80,6 +80,12 @@ class GalleryIndex
 
         if (! $dryRun && $stale !== []) {
             $this->galleryQuery($visibility, $areaId, $apId)->whereIn('filename', $stale)->delete();
+
+            // The file is gone: its description facts and embedding must not attach to a future
+            // file of the same name.
+            foreach ($stale as $filename) {
+                $this->descriptions->forget($visibility, $areaId, $apId, $filename);
+            }
         }
 
         return $result;

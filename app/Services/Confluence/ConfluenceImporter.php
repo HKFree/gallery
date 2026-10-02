@@ -26,8 +26,18 @@ use RuntimeException;
  */
 class ConfluenceImporter
 {
-    /** How long one job run imports before handing the rest to a fresh job (below the job timeout). */
-    public const CHUNK_SECONDS = 30;
+    /**
+     * How long one job run starts new photos before handing the rest to a fresh job. A photo
+     * started just before this may still take {@see self::DOWNLOAD_SECONDS} plus storing, which
+     * must stay below the job timeout ({@see ImportConfluencePage::$timeout}).
+     */
+    public const CHUNK_SECONDS = 20;
+
+    /** Longest a single attachment download may take. */
+    public const DOWNLOAD_SECONDS = 50;
+
+    /** A photo whose processing was interrupted this many times (job killed) is given up. */
+    private const MAX_ATTEMPTS = 2;
 
     /** Free disk space that must remain after an import. */
     private const DISK_RESERVE_BYTES = 1024 ** 3;
@@ -175,6 +185,16 @@ class ConfluenceImporter
      */
     private function importItem(ConfluenceImport $import, ConfluenceImportItem $item): void
     {
+        // Count the attempt before working, so a photo that keeps getting the job killed (too
+        // slow, too heavy) is given up instead of failing the whole import.
+        if ($item->attempts >= self::MAX_ATTEMPTS) {
+            $item->update(['status' => ImportItemStatus::Failed, 'reason' => 'Zpracování opakovaně nedoběhlo (příliš pomalé stažení nebo příliš velký soubor).']);
+
+            return;
+        }
+
+        $item->increment('attempts');
+
         if ($item->stored_filename !== null && $this->storage->exists($import->visibility, $import->area_id, $import->ap_id, $item->stored_filename)) {
             $this->complete($import, $item);
 
@@ -184,7 +204,7 @@ class ConfluenceImporter
         $temporary = $this->storage->temporaryPath("confluence-{$import->id}-{$item->id}.part");
 
         try {
-            $this->confluence->download($item->download_path, $temporary, GalleryStorage::MAX_UPLOAD_KB * 1024);
+            $this->confluence->download($item->download_path, $temporary, GalleryStorage::MAX_UPLOAD_KB * 1024, self::DOWNLOAD_SECONDS);
 
             if (@getimagesize($temporary) === false) {
                 throw new ConfluenceException('Soubor není platný obrázek.');

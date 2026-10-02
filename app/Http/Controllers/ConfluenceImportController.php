@@ -53,13 +53,15 @@ class ConfluenceImportController extends Controller
             $page = $this->confluence->page($pageId);
             $analysis = $this->analyzer->analyze($page, $this->confluence->attachments($pageId));
 
+            // Count by attachment version, as the import does: a new version is a new photo.
             $imported = $this->importer->alreadyImported($visibility, $area, $ap, $analysis->photos);
+            $alreadyImported = count(array_filter($analysis->photos, fn ($photo): bool => isset($imported["{$photo->id}:{$photo->version}"])));
 
             $data['preview'] = [
                 'page' => $page,
                 'analysis' => $analysis,
-                'alreadyImported' => count($imported),
-                'newPhotos' => count($analysis->photos) - count($imported),
+                'alreadyImported' => $alreadyImported,
+                'newPhotos' => count($analysis->photos) - $alreadyImported,
                 'children' => $analysis->photos === [] ? $this->confluence->childPages($pageId) : [],
                 'matchesAp' => $this->matchesAp($page, $gallery['name']),
             ];

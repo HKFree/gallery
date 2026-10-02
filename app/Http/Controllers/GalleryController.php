@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\GalleryImageEmbedding;
 use App\Services\DirectionCoverage;
 use App\Services\DirectionSuggestions;
 use App\Services\GalleryDescriptions;
@@ -84,7 +83,8 @@ class GalleryController extends Controller
             'total_chunks' => ['required', 'integer', 'min:1', 'max:60'],
             'filename' => ['required', 'string', 'max:255'],
             'chunk' => ['required', 'file', 'max:2048'],
-            'client_modified_at' => ['nullable', 'integer', 'min:0'],
+            // Milliseconds since 1970; capped well below where timestamps stop being valid dates.
+            'client_modified_at' => ['nullable', 'integer', 'min:0', 'max:32503680000000'],
         ], [
             'chunk.uploaded' => 'Část souboru se nepodařilo nahrát.',
             'chunk.max' => 'Část souboru je příliš velká.',
@@ -102,9 +102,11 @@ class GalleryController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $lastModified = isset($validated['client_modified_at']) ? CarbonImmutable::createFromTimestampMs((int) $validated['client_modified_at']) : null;
-
-        rescue(fn () => $this->index->record($visibility, $area, $ap, $filename, $lastModified));
+        // The file is stored; nothing from here on may fail the upload (the next reconcile indexes it).
+        rescue(fn () => $this->index->record(
+            $visibility, $area, $ap, $filename,
+            isset($validated['client_modified_at']) ? CarbonImmutable::createFromTimestampMs((int) $validated['client_modified_at']) : null,
+        ));
 
         return response()->json(['status' => 'ok', 'filename' => $filename]);
     }
@@ -119,7 +121,6 @@ class GalleryController extends Controller
         $this->storage->trash($visibility, $area, $ap, $filename);
         $this->index->forget($visibility, $area, $ap, $filename);
         $this->descriptions->forget($visibility, $area, $ap, $filename);
-        GalleryImageEmbedding::query()->where(['visibility' => $visibility, 'area_id' => $area, 'ap_id' => $ap, 'filename' => basename($filename)])->delete();
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);

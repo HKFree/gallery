@@ -91,3 +91,11 @@ it('is linked from the header for managers only', function () {
     $this->get(route('home'))->assertDontSee(route('coverage'));
     $this->actingAs(User::factory()->admin()->create())->get(route('home'))->assertSee(route('coverage'));
 });
+
+it('does not show the coverage box on further timeline pages', function () {
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(route('gallery.public.timeline', ['area' => 13, 'ap' => 201, 'cursor' => 'eyJzb3J0X2F0IjoiMjAyNC0wMS0wMSAwMDowMDowMCIsImlkIjoxLCJfcG9pbnRzVG9OZXh0SXRlbXMiOnRydWV9']))
+        ->assertSuccessful()
+        ->assertDontSee('Výhledy podle směrů')
+        ->assertDontSee('Fotky jsou ze všech osmi směrů');
+});

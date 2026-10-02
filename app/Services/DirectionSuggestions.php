@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\GalleryImageDescription;
 use App\Models\GalleryImageEmbedding;
 use App\Support\Compass;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Suggests a photo's view direction from the most similar photo of the same AP whose direction
@@ -33,12 +34,46 @@ class DirectionSuggestions
     private const SAME_DIRECTION_DEGREES = 25;
 
     /**
-     * Suggestions for the given photos of a gallery that have no direction yet.
+     * Suggestions for photos of a gallery that have no direction yet: the given ones, or all.
      *
-     * @param  list<string>  $filenames
+     * Comparing every photo with every photo of known direction is quadratic, so the result for
+     * the whole gallery is cached under a fingerprint of the AP's embeddings and directions; any
+     * change to them (count, latest update, sum of headings) gives a new key.
+     *
+     * @param  list<string>|null  $filenames
      * @return array<string, array{heading: int, from: string, similarity: float}>
      */
-    public function forGallery(string $visibility, int $areaId, int $apId, array $filenames): array
+    public function forGallery(string $visibility, int $areaId, int $apId, ?array $filenames = null): array
+    {
+        $all = Cache::remember(
+            $this->cacheKey($visibility, $areaId, $apId),
+            now()->addHour(),
+            fn (): array => $this->compute($visibility, $areaId, $apId),
+        );
+
+        return $filenames === null ? $all : array_intersect_key($all, array_flip($filenames));
+    }
+
+    private function cacheKey(string $visibility, int $areaId, int $apId): string
+    {
+        $ap = ['area_id' => $areaId, 'ap_id' => $apId];
+        $embeddings = GalleryImageEmbedding::query()->where([...$ap, 'model' => self::MODEL])
+            ->toBase()->selectRaw('count(*) as total, max(updated_at) as latest')->first();
+        $headings = GalleryImageDescription::query()->where($ap)->whereNotNull('heading')
+            ->toBase()->selectRaw('count(*) as total, max(updated_at) as latest, sum(heading) as headings')->first();
+
+        return 'gallery:direction-suggestions:'.md5(implode('|', [
+            $visibility, $areaId, $apId,
+            $embeddings->total, $embeddings->latest, $headings->total, $headings->latest, $headings->headings,
+        ]));
+    }
+
+    /**
+     * Suggestions for every photo of the gallery without a direction.
+     *
+     * @return array<string, array{heading: int, from: string, similarity: float}>
+     */
+    private function compute(string $visibility, int $areaId, int $apId): array
     {
         $vectors = GalleryImageEmbedding::query()
             ->where(['area_id' => $areaId, 'ap_id' => $apId, 'model' => self::MODEL])
@@ -61,10 +96,10 @@ class DirectionSuggestions
 
         $suggestions = [];
 
-        foreach ($filenames as $filename) {
-            $key = "{$visibility}/{$filename}";
+        foreach ($vectors->keys() as $key) {
+            [$photoVisibility, $filename] = explode('/', $key, 2);
 
-            if ($headings->has($key) || ! $vectors->has($key)) {
+            if ($photoVisibility !== $visibility || $headings->has($key)) {
                 continue;
             }
 

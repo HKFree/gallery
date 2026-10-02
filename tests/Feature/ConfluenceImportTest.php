@@ -266,3 +266,28 @@ it('runs the queue worker from the scheduler', function () {
 
     expect($commands)->toContain('queue:work --stop-when-empty');
 });
+
+it('offers to import new versions of photos imported before', function () {
+    fakeImportablePage([confluenceAttachment('a.jpg', id: 5), confluenceAttachment('b.jpg', id: 6)]);
+    $previous = ConfluenceImport::factory()->done()->create();
+    ConfluenceImportItem::factory()->imported()->for($previous, 'import')->create(['attachment_id' => 5, 'attachment_version' => 0]);
+    ConfluenceImportItem::factory()->imported()->for($previous, 'import')->create(['attachment_id' => 6, 'attachment_version' => 1]);
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->get(route('confluence.import.create', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'url' => IMPORT_PAGE_URL]))
+        ->assertSeeInOrder(['Už naimportováno', '1'])
+        ->assertSee('Importovat 1 fotku');
+});
+
+it('gives up a photo whose processing keeps getting interrupted, not the whole import', function () {
+    Queue::fake();
+    fakeImportablePage([confluenceAttachment('slow.jpg'), confluenceAttachment('fine.jpg')]);
+    $import = startImport();
+    $import->items()->where('original_filename', 'slow.jpg')->update(['attempts' => 2]);
+
+    expect(app(ConfluenceImporter::class)->process($import))->toBeTrue()
+        ->and($import->items()->orderBy('id')->get()->map->only(['original_filename', 'status'])->all())->toBe([
+            ['original_filename' => 'fine.jpg', 'status' => ImportItemStatus::Imported],
+            ['original_filename' => 'slow.jpg', 'status' => ImportItemStatus::Failed],
+        ]);
+});

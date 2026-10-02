@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\Scene;
 use App\Models\GalleryImage;
 use App\Models\GalleryImageDescription;
+use App\Models\GalleryImageEmbedding;
 use App\Models\User;
 use App\Support\ApName;
 use App\Support\Compass;
@@ -59,16 +60,21 @@ class GalleryDescriptions
         $facts = $this->factsFromFile($this->storage->absolutePath($visibility, $areaId, $apId, $filename), $filename);
 
         if (array_filter($facts, fn ($value) => $value !== null) !== []) {
-            GalleryImageDescription::create([...$key, ...$facts]);
+            // Atomic: two requests indexing the same new file at once must not collide.
+            GalleryImageDescription::createOrFirst($key, $facts);
         }
     }
 
     /**
-     * Drop a photo's facts (when it is trashed), so a new photo reusing the name starts clean.
+     * Drop a photo's facts and image embedding (when it is trashed, or its file is gone), so a
+     * new photo reusing the name starts clean.
      */
     public function forget(string $visibility, int $areaId, int $apId, string $filename): void
     {
-        GalleryImageDescription::query()->where($this->key($visibility, $areaId, $apId, $filename))->delete();
+        $key = $this->key($visibility, $areaId, $apId, $filename);
+
+        GalleryImageDescription::query()->where($key)->delete();
+        GalleryImageEmbedding::query()->where($key)->delete();
     }
 
     /**

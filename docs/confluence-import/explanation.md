@@ -6,7 +6,7 @@ Jedna stránka fotoarchivu může mít přes sto fotek a stovky megabajtů (str�
 `vyhledy_plotiste` má 133 fotek, 287 MB). Takové stahování se nevejde do jednoho webového
 požadavku, proto ho dělá úloha na pozadí.
 
-Úloha pracuje po 30 sekundách a pak předá zbytek dalšímu běhu. Krátké běhy znamenají, že
+Úloha začíná nové fotky 20 sekund a pak předá zbytek dalšímu běhu. Krátké běhy znamenají, že
 pád serveru přijde nanejvýš o jednu rozpracovanou fotku, a že se úloha nikdy nespustí
 dvakrát souběžně. Po uložení každé fotky se hned zapíše, pod jakým názvem je uložená. Když
 úloha spadne mezi uložením a dokončením, další běh fotku jen zaindexuje a nestahuje ji znovu

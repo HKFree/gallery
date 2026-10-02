@@ -64,3 +64,10 @@ it('offers no manage controls', function () {
 it('is linked from the header', function () {
     $this->get(route('home'))->assertSee(route('timeline'));
 });
+
+it('leaves out images filed under an area the AP no longer belongs to', function () {
+    // AP 201 is in area 13 in Userdb; this row says area 12, so its links would 404.
+    GalleryImage::factory()->create(['area_id' => 12, 'ap_id' => 201, 'filename' => 'moved.jpg', 'taken_at' => '2024-05-21 10:00:00']);
+
+    $this->get(route('timeline'))->assertDontSee('moved.jpg')->assertSee('brno.jpg');
+});

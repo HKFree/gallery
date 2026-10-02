@@ -140,7 +140,7 @@ class ConfluenceClient
      *
      * @throws ConfluenceException
      */
-    public function download(string $downloadPath, string $targetPath, int $maxBytes): void
+    public function download(string $downloadPath, string $targetPath, int $maxBytes, int $timeoutSeconds = 50): void
     {
         if (! str_starts_with($downloadPath, '/download/')) {
             throw new ConfluenceException('Neplatný odkaz na přílohu.');
@@ -157,7 +157,7 @@ class ConfluenceClient
 
         try {
             $response = $this->request(retry: false)
-                ->timeout(120)
+                ->timeout($timeoutSeconds)
                 ->withOptions(['sink' => $targetPath, 'progress' => $progress])
                 ->get($downloadPath);
         } catch (Throwable) {

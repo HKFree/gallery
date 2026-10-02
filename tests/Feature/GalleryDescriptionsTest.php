@@ -3,6 +3,7 @@
 use App\Enums\Scene;
 use App\Models\GalleryImage;
 use App\Models\GalleryImageDescription;
+use App\Models\GalleryImageEmbedding;
 use App\Models\User;
 use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
@@ -181,4 +182,21 @@ it('shows a small map for photos with a known direction, loaded only when opened
     expect(substr_count($page, 'data-map'))->toBe(1)
         ->and(substr_count($page, '<details data-map class'))->toBe(1)
         ->and($page)->not->toContain('<details data-map open');
+});
+
+it('forgets the facts of files that disappeared from disk when reconciling', function () {
+    GalleryImage::factory()->create(['filename' => 'gone.jpg']);
+    GalleryImageDescription::factory()->create(['filename' => 'gone.jpg', 'heading' => 90, 'heading_source' => 'manual']);
+    GalleryImageEmbedding::factory()->create(['filename' => 'gone.jpg']);
+
+    app(GalleryIndex::class)->reconcileAp('pub', 13, 201);
+
+    expect(GalleryImageDescription::count())->toBe(0)
+        ->and(GalleryImageEmbedding::count())->toBe(0);
+
+    // A new file with the same name starts clean.
+    Storage::disk('local')->put('gallery/ap/13/201/pub/gone.jpg', 'x');
+    app(GalleryIndex::class)->record('pub', 13, 201, 'gone.jpg');
+
+    expect(GalleryImageDescription::count())->toBe(0);
 });

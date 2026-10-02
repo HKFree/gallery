@@ -121,11 +121,11 @@ inside a web request.
   - A long import continues across minutes, because the job is chunked (below).
   - This needs no new service and no root, and it is already covered by the `www-data`
     crontab line.
-- **Job `ImportConfluencePage`:** processes attachments for at most **30 seconds**, then
+- **Job `ImportConfluencePage`:** starts attachments for at most **20 seconds** (originally 30; changed after review), then
   re-dispatches itself for the rest.
   - The chunk is time-boxed rather than a fixed count, because a slow link can make 10 files
     take minutes.
-  - The job's `$timeout` (45 s) stays below the database queue's `retry_after` (90 s). A job
+  - The job's `$timeout` (85 s, allowing one more 50-second download plus storing) stays below the database queue's `retry_after` (90 s). A job
     that ran past `retry_after` would be started a second time, in parallel with itself.
   - A crash loses at most the file being processed.
 

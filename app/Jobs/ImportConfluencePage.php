@@ -10,16 +10,17 @@ use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
 
 /**
- * Imports a Confluence page's photos in time-boxed chunks: each run works for about
- * {@see ConfluenceImporter::CHUNK_SECONDS} seconds and queues itself again for the rest.
- * The timeout stays below the database queue's `retry_after` (90 s), so a run is never
- * started twice in parallel.
+ * Imports a Confluence page's photos in time-boxed chunks: each run starts photos for about
+ * {@see ConfluenceImporter::CHUNK_SECONDS} seconds and queues itself again for the rest. The
+ * last photo started may take up to {@see ConfluenceImporter::DOWNLOAD_SECONDS} to download plus
+ * storing, which the timeout allows. The timeout stays below the database queue's `retry_after`
+ * (90 s), so a run is never started twice in parallel.
  */
 class ImportConfluencePage implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 45;
+    public int $timeout = 85;
 
     public int $tries = 3;
 

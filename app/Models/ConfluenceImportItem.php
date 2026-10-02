@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * One attachment considered by a Confluence import. `stored_filename` is saved as soon as the
  * file is stored, so a retry after a crash indexes it instead of downloading it again.
  */
-#[Fillable(['attachment_id', 'attachment_version', 'original_filename', 'size', 'download_path', 'attachment_created_at', 'stored_filename', 'status', 'reason'])]
+#[Fillable(['attachment_id', 'attachment_version', 'original_filename', 'size', 'download_path', 'attachment_created_at', 'stored_filename', 'status', 'attempts', 'reason'])]
 class ConfluenceImportItem extends Model
 {
     /** @use HasFactory<ConfluenceImportItemFactory> */
@@ -30,6 +30,7 @@ class ConfluenceImportItem extends Model
             'attachment_id' => 'integer',
             'attachment_version' => 'integer',
             'size' => 'integer',
+            'attempts' => 'integer',
             'attachment_created_at' => 'immutable_datetime',
             'status' => ImportItemStatus::class,
         ];

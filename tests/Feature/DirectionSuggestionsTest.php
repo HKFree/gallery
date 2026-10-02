@@ -5,6 +5,7 @@ use App\Models\GalleryImageDescription;
 use App\Models\GalleryImageEmbedding;
 use App\Models\User;
 use App\Services\DirectionSuggestions;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -142,4 +143,22 @@ it('forgets the embedding of a trashed photo', function () {
         ->assertOk();
 
     expect(GalleryImageEmbedding::count())->toBe(0);
+});
+
+it('caches suggestions per gallery and recomputes when directions or embeddings change', function () {
+    photoWithEmbedding('south.jpg', [1, 0, 0], 180);
+    photoWithEmbedding('query.jpg', [0.98, 0.1, 0]);
+    $service = app(DirectionSuggestions::class);
+
+    expect($service->forGallery('pub', 13, 201))->toHaveKey('query.jpg');
+
+    // Same data: served from the cache (no embedding vectors are read again).
+    DB::enableQueryLog();
+    $service->forGallery('pub', 13, 201);
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn ($q) => str_contains($q, 'select * from "gallery_image_embeddings"')))->toBeEmpty();
+
+    // A new direction changes the fingerprint: query.jpg now has one, so no suggestion.
+    GalleryImageDescription::factory()->create(['filename' => 'query.jpg', 'heading' => 180]);
+
+    expect($service->forGallery('pub', 13, 201))->toBe([]);
 });

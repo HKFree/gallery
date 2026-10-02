@@ -7,7 +7,6 @@ use App\Services\DirectionCoverage;
 use App\Services\DirectionSuggestions;
 use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
-use App\Services\GalleryStorage;
 use App\Services\Timeline;
 use App\Services\UserdbService;
 use App\Support\GalleryLinks;
@@ -27,7 +26,6 @@ class TimelineController extends Controller
         private readonly Timeline $timeline,
         private readonly GalleryDescriptions $descriptions,
         private readonly DirectionSuggestions $suggestions,
-        private readonly GalleryStorage $storage,
         private readonly DirectionCoverage $coverage,
     ) {}
 
@@ -44,9 +42,16 @@ class TimelineController extends Controller
 
         $aps = $this->userdb->aps();
 
+        // Match area and AP together: links are built from both, so an AP that moved to another
+        // area in Userdb would otherwise show images whose gallery routes 404.
         $images = GalleryImage::query()
             ->whereIn('visibility', $includePrivate ? ['pub', 'priv'] : ['pub'])
-            ->whereIn('ap_id', $aps->keys()->all());
+            ->where(function (Builder $query) use ($aps): void {
+                foreach ($aps->groupBy(fn (array $ap): int => $ap['area']['id']) as $areaId => $areaAps) {
+                    $query->orWhere(fn (Builder $query) => $query->where('area_id', $areaId)->whereIn('ap_id', $areaAps->pluck('id')->all()));
+                }
+            })
+            ->when($aps->isEmpty(), fn (Builder $query) => $query->whereRaw('1 = 0'));
 
         return $this->respond(
             $request,
@@ -101,9 +106,7 @@ class TimelineController extends Controller
             GalleryImage::query()->where(['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId]),
             function (GalleryImage $image) use ($visibility, $areaId, $apId, $canManage, &$suggestions): array {
                 // Worked out once per page, and only for managers, who can confirm suggestions.
-                $suggestions ??= $canManage
-                    ? $this->suggestions->forGallery($visibility, $areaId, $apId, $this->storage->imageNames($visibility, $areaId, $apId))
-                    : [];
+                $suggestions ??= $canManage ? $this->suggestions->forGallery($visibility, $areaId, $apId) : [];
 
                 return [
                     ...GalleryLinks::image($visibility, $areaId, $apId, $image->filename),
@@ -115,7 +118,8 @@ class TimelineController extends Controller
             url: route($visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline', ['area' => $areaId, 'ap' => $apId]),
             data: [
                 'visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending,
-                'coverage' => $request->has('cursor') ? [] : $this->coverage->forGallery($visibility, $areaId, $apId),
+                // Further pages (?cursor=) don't repeat the coverage box.
+                'coverage' => $request->has('cursor') ? null : $this->coverage->forGallery($visibility, $areaId, $apId),
             ],
         );
     }

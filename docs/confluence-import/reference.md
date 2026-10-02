@@ -57,7 +57,8 @@ Fotka se považuje za již naimportovanou, pokud stejná příloha **ve stejné 
 | --- | --- |
 | Souběžné importy | nejvýše jeden na galerii |
 | Kontrola místa | volné místo musí pokrýt velikost importu plus 1 GB |
-| Délka jednoho běhu úlohy | 30 s, pak pokračuje další běh (timeout 45 s, opakování 3×) |
+| Délka jednoho běhu úlohy | nové fotky začíná 20 s, pak pokračuje další běh (stažení jedné fotky nejvýše 50 s, timeout úlohy 85 s, opakování 3×) |
+| Fotka, jejíž zpracování dvakrát nedoběhlo | označí se jako chybná a import pokračuje dalšími fotkami |
 | Datum fotky | EXIF datum pořízení, jinak datum nahrání přílohy do Confluence, jinak čas stažení |
 
 ## Popis fotky
