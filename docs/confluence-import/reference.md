@@ -129,6 +129,21 @@ místo, ne směr.
 | Náskok před nejpodobnější fotkou s jiným směrem (víc než 25° jinak) | aspoň 0,05 |
 | Zobrazení | jen správcům; do popisu se směr dostane až po potvrzení |
 
+### Mapa u fotky
+
+Fotka se známým směrem a známým místem pořízení (poloha z EXIF, jinak souřadnice AP) má vpravo
+dole špendlík. Po kliknutí se otevře malá mapa (zhruba 1,2 × 1,2 km):
+
+| Prvek | Význam |
+| --- | --- |
+| Tmavý bod | místo pořízení |
+| Zelená výseč | směr pohledu (±25°) |
+| Oranžové body | AP v zorném poli; AP mimo mapu jsou na jejím okraji se šipkou „→“ |
+
+Mapové dlaždice jsou z OpenStreetMap (nebo ze serveru v `GALLERY_MAP_TILES`) a načítají se až
+po otevření mapy. Prohlížeč při tom serveru dlaždic sdělí jen adresu galerie, ne konkrétní
+stránku.
+
 ### Pokrytí směrů
 
 | Pravidlo | Hodnota |
@@ -165,6 +180,7 @@ kliknutí na **Analyzovat fotky** (nebo po nahrání s volbou **Po nahrání fot
 | `CONFLUENCE_BASE_URL` | `https://doc.hkfree.org` | jediný server, se kterým import komunikuje |
 | `CONFLUENCE_TOKEN` | prázdné | volitelný osobní přístupový token pro omezené prostory |
 | `GALLERY_SCENE_MODEL_URL` | prázdné | volitelné vlastní zrcadlo souborů modelu |
+| `GALLERY_MAP_TILES` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | server mapových dlaždic pro mapy u fotek; při větším provozu použijte vlastní nebo kešující server (pravidla OpenStreetMap) |
 
 Souřadnice AP se čtou z pole `gps` v odpovědi Userdb `/api/areas` (formát `50.22795,15.834133`);
 chybějící nebo neplatné hodnoty se ignorují.

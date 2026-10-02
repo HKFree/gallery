@@ -46,6 +46,7 @@ The most important environment variables (see `.env.example` for the full list):
 | `CONFLUENCE_BASE_URL` | The Confluence the import reads from (default `https://doc.hkfree.org`); no other host is ever contacted. |
 | `CONFLUENCE_TOKEN` | Optional Confluence personal access token, only needed for restricted spaces. |
 | `GALLERY_SCENE_MODEL_URL` | Optional self-hosted mirror of the scene recognition model (default: Hugging Face). |
+| `GALLERY_MAP_TILES` | Tile server for the small per-photo maps (default: OpenStreetMap; use your own or a caching proxy for heavy use). |
 
 ## Local development
 

@@ -63,6 +63,9 @@ ty, které selhaly.
 
 Směr smažete křížkem uprostřed kompasu.
 
+Jakmile má fotka směr, objeví se na ní vpravo dole špendlík. Kliknutím se otevře malá mapa
+se zorným polem a AP, která v něm leží — rychlá kontrola, že směr sedí.
+
 ## Doplnit směr podle podobných fotek
 
 1. Nastavte směr několika fotkám AP — kompasem, nebo je pojmenujte se směrem v názvu.
