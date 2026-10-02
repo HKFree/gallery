@@ -161,3 +161,24 @@ it('captures the direction of a normal upload from the phone compass', function 
         ->and(app(GalleryDescriptions::class)->texts('pub', 13, 201, ['phone.jpg'])['phone.jpg'])
         ->toBe('Výhled z AP Brno na S (1°) — směrem AP Brno-Sever (2,2 km).');
 });
+
+it('shows a small map for photos with a known direction, loaded only when opened', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'x');
+    Storage::disk('local')->put('gallery/ap/13/201/pub/b.jpg', 'x');
+    factsFor(['heading' => 0, 'heading_source' => 'manual']);
+    GalleryImageDescription::factory()->create(['filename' => 'b.jpg', 'scene' => Scene::Les, 'scene_score' => 0.9]);
+    config(['services.gallery.map_tiles' => 'https://tiles.example/{z}/{x}/{y}.png']);
+
+    $page = $this->get(route('gallery.public', ['area' => 13, 'ap' => 201]))
+        ->assertSee('Zobrazit na mapě')
+        ->assertSee('https://tiles.example/14/', escape: false)
+        ->assertSee('referrerpolicy="origin"', escape: false)
+        ->assertSee('Brno-Sever →')
+        ->assertSee('OpenStreetMap')
+        ->getContent();
+
+    // Only the photo with a direction gets a map, inside a closed <details>.
+    expect(substr_count($page, 'data-map'))->toBe(1)
+        ->and(substr_count($page, '<details data-map class'))->toBe(1)
+        ->and($page)->not->toContain('<details data-map open');
+});

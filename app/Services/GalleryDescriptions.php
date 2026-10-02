@@ -8,6 +8,7 @@ use App\Models\GalleryImageDescription;
 use App\Models\User;
 use App\Support\ApName;
 use App\Support\Compass;
+use App\Support\MiniMap;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Number;
 use Illuminate\Support\Str;
@@ -128,6 +129,17 @@ class GalleryDescriptions
      */
     public function texts(string $visibility, int $areaId, int $apId, array $filenames): array
     {
+        return array_filter(array_map(fn (array $details): ?string => $details['text'], $this->details($visibility, $areaId, $apId, $filenames)));
+    }
+
+    /**
+     * Description text and mini-map data of one gallery's photos, keyed by file name.
+     *
+     * @param  list<string>  $filenames
+     * @return array<string, array{text: string|null, map: array<string, mixed>|null}>
+     */
+    public function details(string $visibility, int $areaId, int $apId, array $filenames): array
+    {
         $aps = $this->userdb->aps();
         $ap = $aps->get($apId);
         $facts = $this->facts($visibility, $areaId, $apId, $filenames);
@@ -136,16 +148,17 @@ class GalleryDescriptions
             return [];
         }
 
-        return $facts->map(fn (GalleryImageDescription $fact): ?string => $this->compose($fact, $ap, $aps))->filter()->all();
+        return $facts->map(fn (GalleryImageDescription $fact): array => $this->describe($fact, $ap, $aps))->all();
     }
 
     /**
-     * Descriptions of indexed photos from any galleries, keyed by "visibility/area/ap/filename".
+     * Description text and mini-map data of indexed photos from any galleries, keyed by
+     * "visibility/area/ap/filename".
      *
      * @param  iterable<GalleryImage>  $images
-     * @return array<string, string>
+     * @return array<string, array{text: string|null, map: array<string, mixed>|null}>
      */
-    public function textsForImages(iterable $images): array
+    public function detailsForImages(iterable $images): array
     {
         $images = collect($images);
 
@@ -161,8 +174,8 @@ class GalleryDescriptions
             ->toBase()
             ->keyBy(fn (GalleryImageDescription $fact): string => "{$fact->visibility}/{$fact->area_id}/{$fact->ap_id}/{$fact->filename}")
             ->only($images->map(fn (GalleryImage $image): string => "{$image->visibility}/{$image->area_id}/{$image->ap_id}/{$image->filename}")->all())
-            ->map(fn (GalleryImageDescription $fact): ?string => $aps->has($fact->ap_id) ? $this->compose($fact, $aps[$fact->ap_id], $aps) : null)
-            ->filter()
+            ->filter(fn (GalleryImageDescription $fact): bool => $aps->has($fact->ap_id))
+            ->map(fn (GalleryImageDescription $fact): array => $this->describe($fact, $aps[$fact->ap_id], $aps))
             ->all();
     }
 
@@ -174,12 +187,24 @@ class GalleryDescriptions
      */
     public function compose(GalleryImageDescription $facts, array $ap, Collection $aps): ?string
     {
+        return $this->describe($facts, $ap, $aps)['text'];
+    }
+
+    /**
+     * The description sentence and, for photos with a known direction and origin, a mini map.
+     *
+     * @param  array{id: int, name: string, lat: float|null, lon: float|null}  $ap
+     * @param  Collection<int, array{id: int, name: string, lat: float|null, lon: float|null}>  $aps
+     * @return array{text: string|null, map: array<string, mixed>|null}
+     */
+    private function describe(GalleryImageDescription $facts, array $ap, Collection $aps): array
+    {
         $scene = $facts->scene !== null && $facts->scene_score >= Scene::MIN_SCORE ? $facts->scene : null;
         $recognised = array_values(array_filter([$scene?->label(), $this->obstructionPhrase($facts, $scene)]));
         $scene = $recognised === [] ? null : Str::ucfirst(implode(', ', $recognised)).' (rozpoznáno automaticky).';
 
         if ($facts->heading === null) {
-            return $scene;
+            return ['text' => $scene, 'map' => null];
         }
 
         $hasOwnOrigin = $facts->origin_lat !== null && $facts->origin_lon !== null;
@@ -191,16 +216,23 @@ class GalleryDescriptions
         $text = ($fromAp ? 'Výhled z '.ApName::label($ap['name']) : 'Výhled')
             .' na '.Compass::point($facts->heading)." ({$facts->heading}°)";
 
+        $map = null;
+
         if ($lat !== null && $lon !== null) {
             // A photo taken elsewhere may well look at its own AP.
             $targets = $this->apsInView($lat, $lon, $facts->heading, $fromAp ? $ap['id'] : null, $aps);
 
             if ($targets !== []) {
-                $text .= ' — směrem '.implode(', ', $targets);
+                $text .= ' — směrem '.implode(', ', array_map(
+                    fn (array $target): string => ApName::label($target['name']).' ('.Number::format($target['km'], precision: 1, locale: 'cs').' km)',
+                    $targets,
+                ));
             }
+
+            $map = MiniMap::make($lat, $lon, $facts->heading, $targets, (string) config('services.gallery.map_tiles'));
         }
 
-        return $text.'.'.($scene === null ? '' : " {$scene}");
+        return ['text' => $text.'.'.($scene === null ? '' : " {$scene}"), 'map' => $map];
     }
 
     /**
@@ -223,10 +255,10 @@ class GalleryDescriptions
     }
 
     /**
-     * Other APs within the view cone, nearest first, as "AP Name (2,2 km)".
+     * Other APs within the view cone, nearest first.
      *
      * @param  Collection<int, array{id: int, name: string, lat: float|null, lon: float|null}>  $aps
-     * @return list<string>
+     * @return list<array{name: string, km: float, lat: float, lon: float}>
      */
     private function apsInView(float $lat, float $lon, int $heading, ?int $ownApId, Collection $aps): array
     {
@@ -236,11 +268,13 @@ class GalleryDescriptions
                 'name' => $ap['name'],
                 'km' => Compass::distanceKm($lat, $lon, $ap['lat'], $ap['lon']),
                 'angle' => Compass::angleBetween(Compass::bearing($lat, $lon, $ap['lat'], $ap['lon']), $heading),
+                'lat' => $ap['lat'],
+                'lon' => $ap['lon'],
             ])
             ->filter(fn (array $ap): bool => $ap['km'] > 0.05 && $ap['km'] <= self::MAX_TARGET_KM && $ap['angle'] <= self::VIEW_HALF_ANGLE)
             ->sortBy('km')
             ->take(self::MAX_TARGETS)
-            ->map(fn (array $ap): string => ApName::label($ap['name']).' ('.Number::format($ap['km'], precision: 1, locale: 'cs').' km)')
+            ->map(fn (array $ap): array => ['name' => $ap['name'], 'km' => $ap['km'], 'lat' => $ap['lat'], 'lon' => $ap['lon']])
             ->values()
             ->all();
     }

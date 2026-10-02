@@ -134,12 +134,13 @@ class TimelineController extends Controller
         $from = $request->string('from')->toString() ?: null;
         $months = $this->timeline->months($images);
         $page = $this->timeline->page($images, $from);
-        $descriptions = $this->descriptions->textsForImages($page->items());
+        $details = $this->descriptions->detailsForImages($page->items());
 
-        $sections = $this->timeline->sections($page, $months, fn (GalleryImage $image): array => [
-            ...$tile($image),
-            'description' => $descriptions["{$image->visibility}/{$image->area_id}/{$image->ap_id}/{$image->filename}"] ?? null,
-        ]);
+        $sections = $this->timeline->sections($page, $months, function (GalleryImage $image) use ($tile, $details): array {
+            $key = "{$image->visibility}/{$image->area_id}/{$image->ap_id}/{$image->filename}";
+
+            return [...$tile($image), 'description' => $details[$key]['text'] ?? null, 'map' => $details[$key]['map'] ?? null];
+        });
 
         if ($request->ajax()) {
             return view('timeline.fragment', ['sections' => $sections, 'nextUrl' => $page->nextPageUrl(), 'canManage' => $canManage]);

@@ -1,10 +1,26 @@
 @props(['image', 'canManage' => false])
-<figure data-image class="group relative overflow-hidden rounded-lg border border-gray-200 bg-white">
-    <a href="{{ $image['url'] }}" target="_blank" rel="noopener">
-        <img src="{{ $image['thumb_url'] }}" data-name="{{ $image['name'] }}" alt="{{ $image['description'] ?? $image['name'] }}" loading="lazy"
-             @isset($image['description']) title="{{ $image['description'] }}" @endisset
-             class="aspect-square w-full object-cover">
-    </a>
+<figure data-image class="group relative rounded-lg border border-gray-200 bg-white">
+    <div class="relative">
+        <a href="{{ $image['url'] }}" target="_blank" rel="noopener">
+            <img src="{{ $image['thumb_url'] }}" data-name="{{ $image['name'] }}" alt="{{ $image['description'] ?? $image['name'] }}" loading="lazy"
+                 @isset($image['description']) title="{{ $image['description'] }}" @endisset
+                 class="aspect-square w-full rounded-t-lg object-cover">
+        </a>
+        @isset($image['map'])
+            <details data-map class="absolute bottom-1.5 right-1.5 z-10">
+                <summary title="Zobrazit na mapě" class="block w-fit cursor-pointer list-none rounded-md bg-white/90 p-1.5 text-gray-700 shadow hover:bg-white [&::-webkit-details-marker]:hidden">
+                    <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linejoin="round" d="M12 21s-6-5.3-6-10a6 6 0 1112 0c0 4.7-6 10-6 10z" />
+                        <circle cx="12" cy="11" r="2" />
+                    </svg>
+                    <span class="sr-only">Zobrazit na mapě</span>
+                </summary>
+                <div class="fixed inset-x-0 bottom-4 z-30 mx-auto w-fit rounded-md bg-white p-1 shadow-lg sm:absolute sm:inset-x-auto sm:bottom-9 sm:right-0">
+                    <x-gallery.mini-map :map="$image['map']" />
+                </div>
+            </details>
+        @endisset
+    </div>
     @if ($canManage)
         <details data-heading class="absolute left-1.5 top-1.5 z-10 pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100 pointer-fine:focus-within:opacity-100 open:opacity-100">
             <summary title="Nastavit směr pohledu" class="block w-fit cursor-pointer list-none rounded-md bg-white/90 p-1.5 text-gray-700 shadow hover:bg-white [&::-webkit-details-marker]:hidden">

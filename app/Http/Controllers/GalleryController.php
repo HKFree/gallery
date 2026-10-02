@@ -164,17 +164,18 @@ class GalleryController extends Controller
      *
      * Direction suggestions are only worked out for managers, who can confirm them.
      *
-     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string, description_url: string, description: string|null, suggestion: array{heading: int, from: string, similarity: float}|null}>
+     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string, description_url: string, description: string|null, map: array<string, mixed>|null, suggestion: array{heading: int, from: string, similarity: float}|null}>
      */
     private function images(string $visibility, int $areaId, int $apId, bool $withSuggestions = false): array
     {
         $names = $this->storage->imageNames($visibility, $areaId, $apId);
-        $descriptions = $this->descriptions->texts($visibility, $areaId, $apId, $names);
+        $details = $this->descriptions->details($visibility, $areaId, $apId, $names);
         $suggestions = $withSuggestions ? $this->suggestions->forGallery($visibility, $areaId, $apId, $names) : [];
 
         return array_map(fn (string $name): array => [
             ...GalleryLinks::image($visibility, $areaId, $apId, $name),
-            'description' => $descriptions[$name] ?? null,
+            'description' => $details[$name]['text'] ?? null,
+            'map' => $details[$name]['map'] ?? null,
             'suggestion' => $suggestions[$name] ?? null,
         ], $names);
     }
