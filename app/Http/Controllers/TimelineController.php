@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\GalleryImage;
+use App\Services\DirectionCoverage;
+use App\Services\DirectionSuggestions;
+use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
 use App\Services\Timeline;
 use App\Services\UserdbService;
@@ -21,6 +24,9 @@ class TimelineController extends Controller
         private readonly UserdbService $userdb,
         private readonly GalleryIndex $index,
         private readonly Timeline $timeline,
+        private readonly GalleryDescriptions $descriptions,
+        private readonly DirectionSuggestions $suggestions,
+        private readonly DirectionCoverage $coverage,
     ) {}
 
     /**
@@ -34,15 +40,18 @@ class TimelineController extends Controller
     {
         $includePrivate = $request->user() !== null && $request->boolean('priv');
 
-        $aps = $this->userdb->areas()
-            ->flatMap(fn (array $area): array => $area['aps']
-                ->map(fn (array $ap): array => [...$ap, 'area' => ['id' => $area['id'], 'name' => $area['name']]])
-                ->all())
-            ->keyBy('id');
+        $aps = $this->userdb->aps();
 
+        // Match area and AP together: links are built from both, so an AP that moved to another
+        // area in Userdb would otherwise show images whose gallery routes 404.
         $images = GalleryImage::query()
             ->whereIn('visibility', $includePrivate ? ['pub', 'priv'] : ['pub'])
-            ->whereIn('ap_id', $aps->keys()->all());
+            ->where(function (Builder $query) use ($aps): void {
+                foreach ($aps->groupBy(fn (array $ap): int => $ap['area']['id']) as $areaId => $areaAps) {
+                    $query->orWhere(fn (Builder $query) => $query->where('area_id', $areaId)->whereIn('ap_id', $areaAps->pluck('id')->all()));
+                }
+            })
+            ->when($aps->isEmpty(), fn (Builder $query) => $query->whereRaw('1 = 0'));
 
         return $this->respond(
             $request,
@@ -89,14 +98,29 @@ class TimelineController extends Controller
             ? 0
             : $this->index->reconcileAp($visibility, $areaId, $apId, self::RECONCILE_LIMIT)['pending'];
 
+        $canManage = Gate::allows('manage-gallery');
+        $suggestions = null;
+
         return $this->respond(
             $request,
             GalleryImage::query()->where(['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId]),
-            fn (GalleryImage $image): array => GalleryLinks::image($visibility, $areaId, $apId, $image->filename),
-            canManage: Gate::allows('manage-gallery'),
+            function (GalleryImage $image) use ($visibility, $areaId, $apId, $canManage, &$suggestions): array {
+                // Worked out once per page, and only for managers, who can confirm suggestions.
+                $suggestions ??= $canManage ? $this->suggestions->forGallery($visibility, $areaId, $apId) : [];
+
+                return [
+                    ...GalleryLinks::image($visibility, $areaId, $apId, $image->filename),
+                    'suggestion' => $suggestions[$image->filename] ?? null,
+                ];
+            },
+            canManage: $canManage,
             view: 'gallery.timeline',
             url: route($visibility === 'priv' ? 'gallery.private.timeline' : 'gallery.public.timeline', ['area' => $areaId, 'ap' => $apId]),
-            data: ['visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending],
+            data: [
+                'visibility' => $visibility, 'area' => $ap['area'], 'ap' => $ap, 'pending' => $pending,
+                // Further pages (?cursor=) don't repeat the coverage box.
+                'coverage' => $request->has('cursor') ? null : $this->coverage->forGallery($visibility, $areaId, $apId),
+            ],
         );
     }
 
@@ -114,7 +138,13 @@ class TimelineController extends Controller
         $from = $request->string('from')->toString() ?: null;
         $months = $this->timeline->months($images);
         $page = $this->timeline->page($images, $from);
-        $sections = $this->timeline->sections($page, $months, $tile);
+        $details = $this->descriptions->detailsForImages($page->items());
+
+        $sections = $this->timeline->sections($page, $months, function (GalleryImage $image) use ($tile, $details): array {
+            $key = "{$image->visibility}/{$image->area_id}/{$image->ap_id}/{$image->filename}";
+
+            return [...$tile($image), 'description' => $details[$key]['text'] ?? null, 'map' => $details[$key]['map'] ?? null];
+        });
 
         if ($request->ajax()) {
             return view('timeline.fragment', ['sections' => $sections, 'nextUrl' => $page->nextPageUrl(), 'canManage' => $canManage]);

@@ -3,13 +3,14 @@
 namespace App\Services;
 
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 
 /**
  * Determines the dates a gallery image is placed by on the timeline.
  *
  * Every date is returned as wall-clock time in the gallery timezone
  * (`services.gallery.timezone`): EXIF dates carry no zone and are taken as is, timestamps
- * (file mtime, the browser's `File.lastModified`) are converted into it.
+ * (file mtime, source dates) are converted into it.
  */
 class ImageDate
 {
@@ -65,16 +66,17 @@ class ImageDate
     }
 
     /**
-     * The browser-reported modification time (`File.lastModified`, in milliseconds), or null
-     * when absent or implausible.
+     * A date reported by the image's source (the browser's `File.lastModified` on upload, the
+     * attachment date on a Confluence import) as gallery wall-clock time, or null when absent
+     * or implausible.
      */
-    public function fromClientTimestamp(?int $milliseconds): ?CarbonImmutable
+    public function fromSourceDate(?CarbonInterface $date): ?CarbonImmutable
     {
-        if ($milliseconds === null) {
+        if ($date === null) {
             return null;
         }
 
-        $date = CarbonImmutable::createFromTimestampMs($milliseconds, $this->timezone());
+        $date = CarbonImmutable::instance($date)->setTimezone($this->timezone());
 
         return $this->isPlausible($date) ? $date : null;
     }

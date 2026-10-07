@@ -5,6 +5,7 @@ namespace App\Services;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\File;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Lottery;
@@ -34,7 +35,7 @@ class GalleryStorage
     private const TMP_DIR = 'gallery/tmp';
 
     /** Maximum size of an assembled upload, in kilobytes (50 MB). */
-    private const MAX_UPLOAD_KB = 51200;
+    public const MAX_UPLOAD_KB = 51200;
 
     /** Orphaned chunk files older than this (hours) are pruned opportunistically. */
     private const STALE_AFTER_HOURS = 6;
@@ -49,7 +50,7 @@ class GalleryStorage
     private const MAX_THUMBNAIL_MEMORY = 512 * 1024 * 1024;
 
     /** @var list<string> */
-    private const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    public const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
 
     /**
      * The directory holding an AP's images for the given visibility.
@@ -84,6 +85,25 @@ class GalleryStorage
     public function lastModified(string $visibility, int $areaId, int $apId, string $filename): int
     {
         return $this->disk()->lastModified($this->path($visibility, $areaId, $apId, $filename));
+    }
+
+    /**
+     * Absolute path for a temporary file (e.g. a download in progress) in the gallery's temp
+     * directory, which is pruned of stale files.
+     */
+    public function temporaryPath(string $name): string
+    {
+        $this->disk()->makeDirectory(self::TMP_DIR);
+
+        return $this->disk()->path(self::TMP_DIR.'/'.basename($name));
+    }
+
+    /**
+     * Free space, in bytes, on the filesystem holding the gallery.
+     */
+    public function freeSpace(): int
+    {
+        return (int) disk_free_space($this->disk()->path(''));
     }
 
     /**
@@ -204,7 +224,7 @@ class GalleryStorage
         }
 
         try {
-            $filename = $this->persistImage($visibility, $areaId, $apId, new File($absolute), $originalName);
+            $filename = $this->storeImage($visibility, $areaId, $apId, new File($absolute), $originalName);
         } finally {
             $disk->delete([$relative, $progress]);
         }
@@ -217,7 +237,7 @@ class GalleryStorage
      *
      * @return string the stored filename
      */
-    private function persistImage(string $visibility, int $areaId, int $apId, SplFileInfo $file, string $originalName): string
+    public function storeImage(string $visibility, int $areaId, int $apId, SplFileInfo $file, string $originalName): string
     {
         $disk = $this->disk();
         $dir = $this->directory($visibility, $areaId, $apId);
@@ -254,14 +274,28 @@ class GalleryStorage
             return false;
         }
 
-        $original = $this->disk()->path($this->path($visibility, $areaId, $apId, $filename));
+        $path = $this->path($visibility, $areaId, $apId, $filename);
 
-        return $this->generateThumbnail(
-            new File($original),
+        // A failed attempt is remembered (per file version), so public thumbnail requests can't
+        // make the server decode a broken or huge image over and over.
+        $failed = 'gallery:thumbnail-failed:'.md5($path.'|'.$this->disk()->lastModified($path));
+
+        if (Cache::has($failed)) {
+            return false;
+        }
+
+        $generated = $this->generateThumbnail(
+            new File($this->disk()->path($path)),
             $this->path($visibility, $areaId, $apId, $filename, thumb: true),
             Str::lower(pathinfo($filename, PATHINFO_EXTENSION)),
             ['visibility' => $visibility, 'area' => $areaId, 'ap' => $apId, 'filename' => basename($filename)],
         );
+
+        if (! $generated) {
+            Cache::put($failed, true, now()->addDay());
+        }
+
+        return $generated;
     }
 
     /**

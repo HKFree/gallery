@@ -50,9 +50,11 @@ obrazovky a mnohé editory metadata odstraňují. Galerie proto postupuje krok z
 
 1. **Datum pořízení z EXIF.** Pole `DateTime` v EXIF galerie ignoruje, protože navzdory
    názvu zaznamenává, kdy byl soubor naposledy upraven.
-2. **Datum poslední změny souboru, jak ho nahlásí prohlížeč toho, kdo fotku nahrává.**
-   U souborů zkopírovaných přímo z telefonu nebo fotoaparátu je to často čas pořízení.
-   U stažených souborů je to čas stažení, což stále není horší než další možnost.
+2. **Datum ze zdroje fotky.** Při nahrání je to datum poslední změny souboru, jak ho
+   nahlásí prohlížeč toho, kdo fotku nahrává. U souborů zkopírovaných přímo z telefonu nebo
+   fotoaparátu je to často čas pořízení; u stažených souborů čas stažení, což stále není
+   horší než další možnost. Při importu z Confluence je to datum, kdy byla příloha do
+   Confluence nahrána — fotky v Confluence údaje EXIF nemají, takže je to tam obvyklý zdroj.
 3. **Čas nahrání** (čas změny uloženého souboru).
 
 Data, která nemohou být skutečná, se přeskočí a zkusí se další zdroj:

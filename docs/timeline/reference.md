@@ -40,7 +40,7 @@ Každá fotka se zařadí podle prvního dostupného z těchto zdrojů:
 | # | Zdroj | Odkud se čte | Podmínky |
 | --- | --- | --- | --- |
 | 1 | Datum pořízení | EXIF `DateTimeOriginal`, jinak `DateTimeDigitized` | JPEG nebo TIFF; formát `YYYY:MM:DD HH:MM:SS`; věrohodné |
-| 2 | Datum z prohlížeče | `File.lastModified`, odeslané při nahrání | jen nová nahrání; věrohodné |
+| 2 | Datum ze zdroje | `File.lastModified` odeslané prohlížečem při nahrání, nebo datum nahrání přílohy do Confluence při [importu](../confluence-import/README.md) | jen nová nahrání a importy; věrohodné |
 | 3 | Datum souboru | čas poslední změny uloženého souboru | vždy k dispozici |
 
 - **Věrohodné** znamená od 1. ledna 1990 nejvýše do jednoho dne po aktuálním čase.
@@ -95,7 +95,7 @@ Návratový kód `0`.
 | `visibility` | string(4) | `pub` nebo `priv` |
 | `filename` | string | jak je uložen na disku |
 | `taken_at` | datetime, nullable | zdroj 1 |
-| `client_modified_at` | datetime, nullable | zdroj 2 |
+| `client_modified_at` | datetime, nullable | zdroj 2 (datum z prohlížeče, nebo z Confluence) |
 | `uploaded_at` | datetime | zdroj 3 |
 | `sort_at` | datetime | první vyplněná ze tří hodnot; nastavuje se při uložení |
 | `sort_month` | char(7) | `RRRR-MM` z `sort_at`; nastavuje se při uložení |

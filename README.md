@@ -11,6 +11,12 @@ right role can upload and remove photos directly in the browser.
 - **Area / AP data** is pulled live from the HKFree Userdb API.
 - **Timeline** — photos grouped by month, per AP and across the whole network, dated by EXIF
   where available. See the [timeline documentation](docs/timeline/README.md).
+- **Import from Confluence** — managers paste a page URL from the photo archive
+  (`doc.hkfree.org`) into a gallery and its photos are imported in the background.
+- **Photo descriptions** — which AP a view is taken from, its direction and the other APs in
+  view, plus a scene type and how much trees or obstacles block the view, recognised in the
+  manager's browser. Directions can be suggested from similar photos of the same AP. See the
+  [import and descriptions documentation](docs/confluence-import/README.md) (Czech).
 - **Images stream through the application** from a private disk, so private documentation
   is never directly reachable; thumbnails are generated on upload, or on demand when missing.
 
@@ -37,6 +43,10 @@ The most important environment variables (see `.env.example` for the full list):
 | `USERDB_API_USERNAME` / `USERDB_API_PASSWORD` | Credentials for the Userdb API. |
 | `GALLERY_ADMIN_ROLES` | Comma-separated Keycloak realm roles allowed to manage galleries (OR-ed), e.g. `SO,ZSO,PREDSTAVENSTVO,VV`. |
 | `GALLERY_TIMEZONE` | Timezone used to place photos in months on the timeline (default `Europe/Prague`). |
+| `CONFLUENCE_BASE_URL` | The Confluence the import reads from (default `https://doc.hkfree.org`); no other host is ever contacted. |
+| `CONFLUENCE_TOKEN` | Optional Confluence personal access token, only needed for restricted spaces. |
+| `GALLERY_SCENE_MODEL_URL` | Optional self-hosted mirror of the scene recognition model (default: Hugging Face). |
+| `GALLERY_MAP_TILES` | Tile server for the small per-photo maps (default: OpenStreetMap; use your own or a caching proxy for heavy use). |
 
 ## Local development
 
@@ -235,9 +245,15 @@ manually:
 
 ### 9. Scheduler (cron)
 
-The timeline index is kept in sync on upload and delete. A daily `gallery:index` run (from
-Laravel's scheduler) also picks up files changed directly on disk. Run the scheduler as
-`www-data`, so the logs and database files it creates stay writable for Apache:
+The scheduler runs two things:
+
+- a daily `gallery:index` run, which picks up files changed directly on disk (uploads and
+  deletions update the timeline index immediately anyway);
+- the queue worker, every minute, for background jobs such as Confluence imports. No separate
+  worker service (supervisor, systemd) is needed; an import starts within a minute.
+
+Run the scheduler as `www-data`, so the logs, database files and imported photos it creates
+stay writable for Apache:
 
 ```bash
 sudo crontab -u www-data -e

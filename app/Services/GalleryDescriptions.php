@@ -1,0 +1,365 @@
+<?php
+
+namespace App\Services;
+
+use App\Enums\Scene;
+use App\Models\GalleryImage;
+use App\Models\GalleryImageDescription;
+use App\Models\GalleryImageEmbedding;
+use App\Models\User;
+use App\Support\ApName;
+use App\Support\Compass;
+use App\Support\MiniMap;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Number;
+use Illuminate\Support\Str;
+
+/**
+ * Descriptions of gallery photos, composed from stored facts when a page is rendered:
+ *
+ * > Výhled z AP Brno na S (0°) — směrem AP Brno-Sever (2,2 km). Výhled na zástavbu (rozpoznáno automaticky).
+ *
+ * The heading comes from EXIF (`GPSImgDirection`), the file name, or a manager. The origin is
+ * the photo's EXIF GPS position, else the AP's own coordinates from Userdb. Other APs within
+ * ±{@see self::VIEW_HALF_ANGLE}° of the heading are named. A photo with neither a heading nor
+ * a confident scene type gets no description.
+ */
+class GalleryDescriptions
+{
+    /** APs within this many degrees either side of the heading count as "in view". */
+    private const VIEW_HALF_ANGLE = 25;
+
+    /** APs farther than this are not named. */
+    private const MAX_TARGET_KM = 15.0;
+
+    private const MAX_TARGETS = 3;
+
+    /** An EXIF position within this distance of the AP counts as taken from the AP. */
+    private const AT_AP_KM = 0.5;
+
+    /** A view blocked less than this (share of its width) counts as clear. */
+    private const CLEAR_VIEW_BELOW = 0.1;
+
+    public function __construct(
+        private readonly GalleryStorage $storage,
+        private readonly UserdbService $userdb,
+    ) {}
+
+    /**
+     * Record what a stored photo says about itself: EXIF GPS position and compass heading, or a
+     * direction in its file name. Existing facts (e.g. set by a manager) are left alone.
+     */
+    public function capture(string $visibility, int $areaId, int $apId, string $filename): void
+    {
+        $key = $this->key($visibility, $areaId, $apId, $filename);
+
+        if (GalleryImageDescription::query()->where($key)->exists()) {
+            return;
+        }
+
+        $facts = $this->factsFromFile($this->storage->absolutePath($visibility, $areaId, $apId, $filename), $filename);
+
+        if (array_filter($facts, fn ($value) => $value !== null) !== []) {
+            // Atomic: two requests indexing the same new file at once must not collide.
+            GalleryImageDescription::createOrFirst($key, $facts);
+        }
+    }
+
+    /**
+     * Drop a photo's facts and image embedding (when it is trashed, or its file is gone), so a
+     * new photo reusing the name starts clean.
+     */
+    public function forget(string $visibility, int $areaId, int $apId, string $filename): void
+    {
+        $key = $this->key($visibility, $areaId, $apId, $filename);
+
+        GalleryImageDescription::query()->where($key)->delete();
+        GalleryImageEmbedding::query()->where($key)->delete();
+    }
+
+    /**
+     * Set (or, with null, clear) the view direction, by hand (`manual`) or by confirming a
+     * suggestion from a similar photo (`similarity`).
+     */
+    public function setHeading(string $visibility, int $areaId, int $apId, string $filename, ?int $heading, User $user, string $source = 'manual'): GalleryImageDescription
+    {
+        return GalleryImageDescription::updateOrCreate($this->key($visibility, $areaId, $apId, $filename), [
+            'heading' => $heading,
+            'heading_source' => $heading === null ? null : $source,
+            'edited_by' => $user->id,
+        ]);
+    }
+
+    /**
+     * Store a scene type recognised in the browser.
+     */
+    public function setScene(string $visibility, int $areaId, int $apId, string $filename, Scene $scene, float $score): GalleryImageDescription
+    {
+        return GalleryImageDescription::updateOrCreate($this->key($visibility, $areaId, $apId, $filename), [
+            'scene' => $scene,
+            'scene_score' => $score,
+        ]);
+    }
+
+    /**
+     * Store how much of the view near obstacles block, as measured in the browser.
+     */
+    public function setObstruction(string $visibility, int $areaId, int $apId, string $filename, ?float $share, string $kind): GalleryImageDescription
+    {
+        return GalleryImageDescription::updateOrCreate($this->key($visibility, $areaId, $apId, $filename), [
+            'obstruction' => $kind === 'unknown' ? null : $share,
+            'obstruction_kind' => $kind,
+        ]);
+    }
+
+    /**
+     * Facts of one gallery's photos, keyed by file name.
+     *
+     * @param  list<string>  $filenames
+     * @return Collection<string, GalleryImageDescription>
+     */
+    public function facts(string $visibility, int $areaId, int $apId, array $filenames): Collection
+    {
+        return GalleryImageDescription::query()
+            ->where(['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId])
+            ->whereIn('filename', $filenames)
+            ->get()
+            ->keyBy('filename');
+    }
+
+    /**
+     * Descriptions of one gallery's photos, keyed by file name; photos without one are left out.
+     *
+     * @param  list<string>  $filenames
+     * @return array<string, string>
+     */
+    public function texts(string $visibility, int $areaId, int $apId, array $filenames): array
+    {
+        return array_filter(array_map(fn (array $details): ?string => $details['text'], $this->details($visibility, $areaId, $apId, $filenames)));
+    }
+
+    /**
+     * Description text and mini-map data of one gallery's photos, keyed by file name.
+     *
+     * @param  list<string>  $filenames
+     * @return array<string, array{text: string|null, map: array<string, mixed>|null}>
+     */
+    public function details(string $visibility, int $areaId, int $apId, array $filenames): array
+    {
+        $aps = $this->userdb->aps();
+        $ap = $aps->get($apId);
+        $facts = $this->facts($visibility, $areaId, $apId, $filenames);
+
+        if ($ap === null || $facts->isEmpty()) {
+            return [];
+        }
+
+        return $facts->map(fn (GalleryImageDescription $fact): array => $this->describe($fact, $ap, $aps))->all();
+    }
+
+    /**
+     * Description text and mini-map data of indexed photos from any galleries, keyed by
+     * "visibility/area/ap/filename".
+     *
+     * @param  iterable<GalleryImage>  $images
+     * @return array<string, array{text: string|null, map: array<string, mixed>|null}>
+     */
+    public function detailsForImages(iterable $images): array
+    {
+        $images = collect($images);
+
+        if ($images->isEmpty()) {
+            return [];
+        }
+
+        $aps = $this->userdb->aps();
+
+        return GalleryImageDescription::query()
+            ->whereIn('filename', $images->pluck('filename')->unique()->all())
+            ->get()
+            ->toBase()
+            ->keyBy(fn (GalleryImageDescription $fact): string => "{$fact->visibility}/{$fact->area_id}/{$fact->ap_id}/{$fact->filename}")
+            ->only($images->map(fn (GalleryImage $image): string => "{$image->visibility}/{$image->area_id}/{$image->ap_id}/{$image->filename}")->all())
+            ->filter(fn (GalleryImageDescription $fact): bool => $aps->has($fact->ap_id))
+            ->map(fn (GalleryImageDescription $fact): array => $this->describe($fact, $aps[$fact->ap_id], $aps))
+            ->all();
+    }
+
+    /**
+     * The description sentence for a photo's facts, or null when there is nothing to say.
+     *
+     * @param  array{id: int, name: string, lat: float|null, lon: float|null}  $ap
+     * @param  Collection<int, array{id: int, name: string, lat: float|null, lon: float|null}>  $aps
+     */
+    public function compose(GalleryImageDescription $facts, array $ap, Collection $aps): ?string
+    {
+        return $this->describe($facts, $ap, $aps)['text'];
+    }
+
+    /**
+     * The description sentence and, for photos with a known direction and origin, a mini map.
+     *
+     * @param  array{id: int, name: string, lat: float|null, lon: float|null}  $ap
+     * @param  Collection<int, array{id: int, name: string, lat: float|null, lon: float|null}>  $aps
+     * @return array{text: string|null, map: array<string, mixed>|null}
+     */
+    private function describe(GalleryImageDescription $facts, array $ap, Collection $aps): array
+    {
+        $scene = $facts->scene !== null && $facts->scene_score >= Scene::MIN_SCORE ? $facts->scene : null;
+        $recognised = array_values(array_filter([$scene?->label(), $this->obstructionPhrase($facts, $scene)]));
+        $scene = $recognised === [] ? null : Str::ucfirst(implode(', ', $recognised)).' (rozpoznáno automaticky).';
+
+        if ($facts->heading === null) {
+            return ['text' => $scene, 'map' => null];
+        }
+
+        $hasOwnOrigin = $facts->origin_lat !== null && $facts->origin_lon !== null;
+        [$lat, $lon] = $hasOwnOrigin ? [$facts->origin_lat, $facts->origin_lon] : [$ap['lat'], $ap['lon']];
+
+        $fromAp = ! $hasOwnOrigin
+            || ($ap['lat'] !== null && Compass::distanceKm($lat, $lon, $ap['lat'], $ap['lon']) <= self::AT_AP_KM);
+
+        $text = ($fromAp ? 'Výhled z '.ApName::label($ap['name']) : 'Výhled')
+            .' na '.Compass::point($facts->heading)." ({$facts->heading}°)";
+
+        $map = null;
+
+        if ($lat !== null && $lon !== null) {
+            // A photo taken elsewhere may well look at its own AP.
+            $targets = $this->apsInView($lat, $lon, $facts->heading, $fromAp ? $ap['id'] : null, $aps);
+
+            if ($targets !== []) {
+                $text .= ' — směrem '.implode(', ', array_map(
+                    fn (array $target): string => ApName::label($target['name']).' ('.Number::format($target['km'], precision: 1, locale: 'cs').' km)',
+                    $targets,
+                ));
+            }
+
+            $map = MiniMap::make($lat, $lon, $facts->heading, $targets, (string) config('services.gallery.map_tiles'));
+        }
+
+        return ['text' => $text.'.'.($scene === null ? '' : " {$scene}"), 'map' => $map];
+    }
+
+    /**
+     * How much near obstacles block the view ("stromy zakrývají asi 20 % výhledu"), or null when
+     * unknown, or for photos that aren't views (antennas, cabinets, roofs).
+     */
+    private function obstructionPhrase(GalleryImageDescription $facts, ?Scene $scene): ?string
+    {
+        if ($facts->obstruction === null || in_array($scene, [Scene::Anteny, Scene::Technika, Scene::Strecha], true)) {
+            return null;
+        }
+
+        if ($facts->obstruction < self::CLEAR_VIEW_BELOW) {
+            return 'bez překážek';
+        }
+
+        $percent = max(5, (int) (round($facts->obstruction * 20) * 5));
+
+        return ($facts->obstruction_kind === 'trees' ? 'stromy' : 'překážky')." zakrývají asi {$percent} % výhledu";
+    }
+
+    /**
+     * Other APs within the view cone, nearest first.
+     *
+     * @param  Collection<int, array{id: int, name: string, lat: float|null, lon: float|null}>  $aps
+     * @return list<array{name: string, km: float, lat: float, lon: float}>
+     */
+    private function apsInView(float $lat, float $lon, int $heading, ?int $ownApId, Collection $aps): array
+    {
+        return $aps
+            ->reject(fn (array $ap): bool => $ap['id'] === $ownApId || $ap['lat'] === null || $ap['lon'] === null)
+            ->map(fn (array $ap): array => [
+                'name' => $ap['name'],
+                'km' => Compass::distanceKm($lat, $lon, $ap['lat'], $ap['lon']),
+                'angle' => Compass::angleBetween(Compass::bearing($lat, $lon, $ap['lat'], $ap['lon']), $heading),
+                'lat' => $ap['lat'],
+                'lon' => $ap['lon'],
+            ])
+            ->filter(fn (array $ap): bool => $ap['km'] > 0.05 && $ap['km'] <= self::MAX_TARGET_KM && $ap['angle'] <= self::VIEW_HALF_ANGLE)
+            ->sortBy('km')
+            ->take(self::MAX_TARGETS)
+            ->map(fn (array $ap): array => ['name' => $ap['name'], 'km' => $ap['km'], 'lat' => $ap['lat'], 'lon' => $ap['lon']])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * EXIF GPS position and compass heading, or a heading from the file name.
+     *
+     * @return array{origin_lat: float|null, origin_lon: float|null, heading: int|null, heading_source: string|null}
+     */
+    private function factsFromFile(string $path, string $filename): array
+    {
+        try {
+            $gps = @exif_read_data($path, 'GPS');
+        } catch (\Throwable) {
+            $gps = false;
+        }
+
+        $gps = is_array($gps) ? $gps : [];
+        $lat = $this->coordinate($gps['GPSLatitude'] ?? null, $gps['GPSLatitudeRef'] ?? 'N');
+        $lon = $this->coordinate($gps['GPSLongitude'] ?? null, $gps['GPSLongitudeRef'] ?? 'E');
+        $exifHeading = $this->rational($gps['GPSImgDirection'] ?? null);
+        $filenameHeading = Compass::headingFromFilename($filename);
+
+        $heading = match (true) {
+            $exifHeading !== null && $exifHeading >= 0 && $exifHeading < 360 => [(int) round($exifHeading) % 360, 'exif'],
+            $filenameHeading !== null => [$filenameHeading, 'filename'],
+            default => [null, null],
+        };
+
+        return [
+            'origin_lat' => $lat !== null && $lon !== null ? $lat : null,
+            'origin_lon' => $lat !== null && $lon !== null ? $lon : null,
+            'heading' => $heading[0],
+            'heading_source' => $heading[1],
+        ];
+    }
+
+    /**
+     * An EXIF GPS coordinate (degrees, minutes, seconds as rationals) in signed decimal degrees.
+     */
+    private function coordinate(mixed $parts, mixed $reference): ?float
+    {
+        if (! is_array($parts) || count($parts) !== 3) {
+            return null;
+        }
+
+        [$degrees, $minutes, $seconds] = array_map(fn ($part) => $this->rational($part), $parts);
+
+        if ($degrees === null || $minutes === null || $seconds === null) {
+            return null;
+        }
+
+        $value = $degrees + $minutes / 60 + $seconds / 3600;
+        $value = in_array($reference, ['S', 'W'], true) ? -$value : $value;
+
+        return $value === 0.0 || abs($value) > 180 ? null : round($value, 6);
+    }
+
+    /**
+     * An EXIF rational ("12345/100") as a number.
+     */
+    private function rational(mixed $value): ?float
+    {
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        if (! is_string($value) || preg_match('#^(\d+)/(\d+)$#', $value, $matches) !== 1 || (int) $matches[2] === 0) {
+            return null;
+        }
+
+        return (int) $matches[1] / (int) $matches[2];
+    }
+
+    /**
+     * @return array{visibility: string, area_id: int, ap_id: int, filename: string}
+     */
+    private function key(string $visibility, int $areaId, int $apId, string $filename): array
+    {
+        return ['visibility' => $visibility, 'area_id' => $areaId, 'ap_id' => $apId, 'filename' => basename($filename)];
+    }
+}

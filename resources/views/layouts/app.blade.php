@@ -7,6 +7,7 @@
     <title>@yield('title', config('app.name')) — {{ config('app.name') }}</title>
     <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @stack('head')
 </head>
 <body class="min-h-full bg-gray-50 text-gray-900 antialiased">
     <header class="border-b border-gray-200 bg-white">
@@ -20,6 +21,12 @@
                    @class(['rounded-md px-3 py-1.5 font-medium hover:bg-gray-100', 'text-gray-900' => request()->routeIs('timeline'), 'text-gray-600' => ! request()->routeIs('timeline')])>
                     Časová osa
                 </a>
+                @can('manage-gallery')
+                    <a href="{{ route('coverage') }}"
+                       @class(['rounded-md px-3 py-1.5 font-medium hover:bg-gray-100', 'text-gray-900' => request()->routeIs('coverage'), 'text-gray-600' => ! request()->routeIs('coverage')])>
+                        Pokrytí výhledů
+                    </a>
+                @endcan
                 @auth
                     <span class="text-gray-600">{{ auth()->user()->name }}</span>
                     @can('manage-gallery')
@@ -41,6 +48,12 @@
     </header>
 
     <main class="mx-auto max-w-6xl px-4 py-8">
+        @if (session('status'))
+            <div class="mb-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                {{ session('status') }}
+            </div>
+        @endif
+
         @if (session('error'))
             <div class="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {{ session('error') }}

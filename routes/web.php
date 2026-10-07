@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\Auth\KeycloakController;
+use App\Http\Controllers\ConfluenceImportController;
+use App\Http\Controllers\CoverageController;
+use App\Http\Controllers\DescriptionController;
 use App\Http\Controllers\GalleryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\TimelineController;
@@ -61,6 +64,8 @@ Route::middleware('auth')->group(function () {
  * Write actions (upload / soft-delete) — authenticated SO,VV,etc. role only.
  */
 Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
+    Route::get('/pokryti', [CoverageController::class, 'index'])->name('coverage');
+
     Route::post('/gal/area/{area}/ap/{ap}/{visibility}/upload', [GalleryController::class, 'uploadChunk'])
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
@@ -70,4 +75,41 @@ Route::middleware(['auth', 'can:manage-gallery'])->group(function () {
         ->whereIn('visibility', ['pub', 'priv'])
         ->whereNumber(['area', 'ap'])
         ->name('gallery.destroy');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/description', [DescriptionController::class, 'update'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.description');
+
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/analysis-queue', [DescriptionController::class, 'analysisQueue'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.analysis-queue');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/embedding', [DescriptionController::class, 'storeEmbedding'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.embedding');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/suggestions', [DescriptionController::class, 'confirmSuggestions'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->name('gallery.suggestions.confirm');
+
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/import', [ConfluenceImportController::class, 'create'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->middleware('throttle:30,1')
+        ->name('confluence.import.create');
+
+    Route::post('/gal/area/{area}/ap/{ap}/{visibility}/import', [ConfluenceImportController::class, 'store'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap'])
+        ->middleware('throttle:10,1')
+        ->name('confluence.import.store');
+
+    Route::get('/gal/area/{area}/ap/{ap}/{visibility}/import/{import}', [ConfluenceImportController::class, 'show'])
+        ->whereIn('visibility', ['pub', 'priv'])
+        ->whereNumber(['area', 'ap', 'import'])
+        ->name('confluence.import.show');
 });

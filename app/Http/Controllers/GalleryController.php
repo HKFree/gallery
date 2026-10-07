@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DirectionCoverage;
+use App\Services\DirectionSuggestions;
+use App\Services\GalleryDescriptions;
 use App\Services\GalleryIndex;
 use App\Services\GalleryStorage;
 use App\Services\UserdbService;
 use App\Support\GalleryLinks;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +29,9 @@ class GalleryController extends Controller
         private readonly UserdbService $userdb,
         private readonly GalleryStorage $storage,
         private readonly GalleryIndex $index,
+        private readonly GalleryDescriptions $descriptions,
+        private readonly DirectionSuggestions $suggestions,
+        private readonly DirectionCoverage $coverage,
     ) {}
 
     public function showPublic(int $area, int $ap): View
@@ -76,7 +83,8 @@ class GalleryController extends Controller
             'total_chunks' => ['required', 'integer', 'min:1', 'max:60'],
             'filename' => ['required', 'string', 'max:255'],
             'chunk' => ['required', 'file', 'max:2048'],
-            'client_modified_at' => ['nullable', 'integer', 'min:0'],
+            // Milliseconds since 1970; capped well below where timestamps stop being valid dates.
+            'client_modified_at' => ['nullable', 'integer', 'min:0', 'max:32503680000000'],
         ], [
             'chunk.uploaded' => 'Část souboru se nepodařilo nahrát.',
             'chunk.max' => 'Část souboru je příliš velká.',
@@ -94,9 +102,11 @@ class GalleryController extends Controller
             return response()->json(['message' => $e->getMessage()], 422);
         }
 
-        $clientModifiedAt = isset($validated['client_modified_at']) ? (int) $validated['client_modified_at'] : null;
-
-        rescue(fn () => $this->index->record($visibility, $area, $ap, $filename, $clientModifiedAt));
+        // The file is stored; nothing from here on may fail the upload (the next reconcile indexes it).
+        rescue(fn () => $this->index->record(
+            $visibility, $area, $ap, $filename,
+            isset($validated['client_modified_at']) ? CarbonImmutable::createFromTimestampMs((int) $validated['client_modified_at']) : null,
+        ));
 
         return response()->json(['status' => 'ok', 'filename' => $filename]);
     }
@@ -110,6 +120,7 @@ class GalleryController extends Controller
 
         $this->storage->trash($visibility, $area, $ap, $filename);
         $this->index->forget($visibility, $area, $ap, $filename);
+        $this->descriptions->forget($visibility, $area, $ap, $filename);
 
         if ($request->expectsJson()) {
             return response()->json(['status' => 'ok']);
@@ -121,13 +132,17 @@ class GalleryController extends Controller
     private function showGallery(string $visibility, int $areaId, int $apId): View
     {
         $ap = $this->resolveAp($areaId, $apId);
+        $canManage = Gate::allows('manage-gallery');
+        $images = $this->images($visibility, $areaId, $apId, withSuggestions: $canManage);
 
         return view('gallery.show', [
             'visibility' => $visibility,
             'area' => $ap['area'],
             'ap' => $ap,
-            'images' => $this->images($visibility, $areaId, $apId),
-            'canManage' => Gate::allows('manage-gallery'),
+            'images' => $images,
+            'canManage' => $canManage,
+            'suggestionCount' => count(array_filter(array_column($images, 'suggestion'))),
+            'coverage' => $this->coverage->forGallery($visibility, $areaId, $apId),
         ]);
     }
 
@@ -148,14 +163,22 @@ class GalleryController extends Controller
     /**
      * Build the image view-model. All images stream through the controller.
      *
-     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string}>
+     * Direction suggestions are only worked out for managers, who can confirm them.
+     *
+     * @return list<array{name: string, url: string, thumb_url: string, delete_url: string, description_url: string, description: string|null, map: array<string, mixed>|null, suggestion: array{heading: int, from: string, similarity: float}|null}>
      */
-    private function images(string $visibility, int $areaId, int $apId): array
+    private function images(string $visibility, int $areaId, int $apId, bool $withSuggestions = false): array
     {
-        return array_map(
-            fn (string $name): array => GalleryLinks::image($visibility, $areaId, $apId, $name),
-            $this->storage->imageNames($visibility, $areaId, $apId),
-        );
+        $names = $this->storage->imageNames($visibility, $areaId, $apId);
+        $details = $this->descriptions->details($visibility, $areaId, $apId, $names);
+        $suggestions = $withSuggestions ? $this->suggestions->forGallery($visibility, $areaId, $apId, $names) : [];
+
+        return array_map(fn (string $name): array => [
+            ...GalleryLinks::image($visibility, $areaId, $apId, $name),
+            'description' => $details[$name]['text'] ?? null,
+            'map' => $details[$name]['map'] ?? null,
+            'suggestion' => $suggestions[$name] ?? null,
+        ], $names);
     }
 
     /**

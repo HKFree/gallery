@@ -1,0 +1,202 @@
+<?php
+
+use App\Enums\Scene;
+use App\Models\GalleryImage;
+use App\Models\GalleryImageDescription;
+use App\Models\GalleryImageEmbedding;
+use App\Models\User;
+use App\Services\GalleryDescriptions;
+use App\Services\GalleryIndex;
+use Illuminate\Support\Facades\Storage;
+
+beforeEach(function () {
+    fakeUserdbAreas();
+    Storage::fake('local');
+});
+
+function describeFacts(): ?string
+{
+    return app(GalleryDescriptions::class)->texts('pub', 13, 201, ['a.jpg'])['a.jpg'] ?? null;
+}
+
+function factsFor(array $attributes): void
+{
+    GalleryImageDescription::factory()->create(['filename' => 'a.jpg', ...$attributes]);
+}
+
+it('names the APs in view from the AP, nearest first', function () {
+    // Brno-Sever lies 2.2 km due north of Brno.
+    factsFor(['heading' => 0, 'heading_source' => 'manual']);
+
+    expect(describeFacts())->toBe('Výhled z AP Brno na S (0°) — směrem AP Brno-Sever (2,2 km).');
+});
+
+it('leaves out APs outside the view cone or too far', function () {
+    // Slatina is east-south-east of Brno; looking south-west sees nothing.
+    factsFor(['heading' => 225, 'heading_source' => 'manual']);
+
+    expect(describeFacts())->toBe('Výhled z AP Brno na JZ (225°).');
+});
+
+it('finds APs across north (the 0°/360° wrap)', function () {
+    factsFor(['heading' => 350, 'heading_source' => 'manual']);
+
+    expect(describeFacts())->toContain('směrem AP Brno-Sever');
+});
+
+it('describes a photo taken elsewhere from its own GPS position', function () {
+    // Taken 1.1 km south of Brno, looking north: Brno and Brno-Sever are both in view.
+    factsFor(['heading' => 0, 'heading_source' => 'exif', 'origin_lat' => 49.185, 'origin_lon' => 16.61]);
+
+    expect(describeFacts())->toBe('Výhled na S (0°) — směrem AP Brno (1,1 km), AP Brno-Sever (3,3 km).');
+});
+
+it('adds a confident scene type and stays silent without facts', function () {
+    factsFor(['scene' => Scene::Zastavba, 'scene_score' => 0.9]);
+    expect(describeFacts())->toBe('Výhled na zástavbu (rozpoznáno automaticky).');
+
+    GalleryImageDescription::query()->update(['scene_score' => 0.4]);
+    expect(describeFacts())->toBeNull();
+
+    GalleryImageDescription::query()->update(['heading' => 270, 'scene_score' => 0.95]);
+    expect(describeFacts())->toBe('Výhled z AP Brno na Z (270°). Výhled na zástavbu (rozpoznáno automaticky).');
+});
+
+it('keeps "AP" in names that already contain it', function () {
+    $ap = ['id' => 1, 'name' => 'Plotiště AP', 'lat' => 50.24, 'lon' => 15.79];
+    $facts = GalleryImageDescription::factory()->make(['heading' => 90]);
+
+    expect(app(GalleryDescriptions::class)->compose($facts, $ap, collect([1 => $ap])))->toBe('Výhled z Plotiště AP na V (90°).');
+});
+
+it('names the east-south-east AP when looking east', function () {
+    factsFor(['heading' => 90, 'heading_source' => 'manual']);
+
+    expect(describeFacts())->toBe('Výhled z AP Brno na V (90°) — směrem AP Slatina (6,9 km).');
+});
+
+it('captures the EXIF GPS position and compass heading when indexing', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/phone.jpg', jpegWithGps(49.185, 16.61, 2.5));
+
+    app(GalleryIndex::class)->record('pub', 13, 201, 'phone.jpg');
+
+    expect(GalleryImageDescription::sole())
+        ->origin_lat->toEqualWithDelta(49.185, 0.00001)
+        ->origin_lon->toEqualWithDelta(16.61, 0.00001)
+        ->heading->toBe(3)
+        ->heading_source->toBe('exif');
+});
+
+it('captures a direction from the file name, and nothing for plain photos', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/Sever - směr Plačice.jpg', 'x');
+    Storage::disk('local')->put('gallery/ap/13/201/pub/DSC_0077.jpg', 'x');
+    Storage::disk('local')->put('gallery/ap/13/201/pub/gps-only.jpg', jpegWithGps(49.185, 16.61));
+
+    app(GalleryIndex::class)->reconcileAp('pub', 13, 201);
+
+    expect(GalleryImageDescription::orderBy('filename')->get()->map->only(['filename', 'heading', 'heading_source'])->all())->toBe([
+        ['filename' => 'Sever - směr Plačice.jpg', 'heading' => 0, 'heading_source' => 'filename'],
+        ['filename' => 'gps-only.jpg', 'heading' => null, 'heading_source' => null],
+    ]);
+});
+
+it('does not overwrite a direction set by a manager when re-indexing', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/sever.jpg', 'x');
+    factsFor(['filename' => 'sever.jpg', 'heading' => 200, 'heading_source' => 'manual']);
+
+    app(GalleryIndex::class)->record('pub', 13, 201, 'sever.jpg');
+
+    expect(GalleryImageDescription::sole()->heading)->toBe(200);
+});
+
+it('forgets the facts of a trashed photo', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'x');
+    factsFor(['heading' => 0]);
+
+    $this->actingAs(User::factory()->admin()->create())
+        ->deleteJson(route('gallery.destroy', ['visibility' => 'pub', 'area' => 13, 'ap' => 201, 'filename' => 'a.jpg']))
+        ->assertOk();
+
+    expect(GalleryImageDescription::count())->toBe(0);
+});
+
+it('shows descriptions on grid and timeline tiles, as alt text too', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'x');
+    GalleryImage::factory()->create(['filename' => 'a.jpg']);
+    factsFor(['heading' => 0, 'heading_source' => 'manual']);
+    $text = 'Výhled z AP Brno na S (0°) — směrem AP Brno-Sever (2,2 km).';
+
+    foreach (['gallery.public', 'gallery.public.timeline', 'timeline'] as $route) {
+        $parameters = $route === 'timeline' ? [] : ['area' => 13, 'ap' => 201];
+
+        $this->get(route($route, $parameters))
+            ->assertSee('alt="'.e($text).'"', escape: false)
+            ->assertSee('data-description', escape: false);
+    }
+});
+
+it('describes how much of the view is obstructed', function (?float $share, ?string $kind, ?Scene $scene, ?string $expected) {
+    factsFor(['scene' => $scene, 'scene_score' => $scene ? 0.9 : null, 'obstruction' => $share, 'obstruction_kind' => $kind]);
+
+    expect(describeFacts())->toBe($expected);
+})->with([
+    'clear view' => [0.03, 'trees', Scene::Krajina, 'Výhled do krajiny, bez překážek (rozpoznáno automaticky).'],
+    'trees' => [0.22, 'trees', Scene::Zastavba, 'Výhled na zástavbu, stromy zakrývají asi 20 % výhledu (rozpoznáno automaticky).'],
+    'other obstacles, no scene' => [0.56, 'other', null, 'Překážky zakrývají asi 55 % výhledu (rozpoznáno automaticky).'],
+    'not judged (no sky)' => [null, 'unknown', Scene::Zastavba, 'Výhled na zástavbu (rozpoznáno automaticky).'],
+    'not a view' => [0.4, 'other', Scene::Technika, 'Rozvaděč / technika (rozpoznáno automaticky).'],
+]);
+
+it('adds the obstruction after the direction', function () {
+    factsFor(['heading' => 0, 'heading_source' => 'manual', 'obstruction' => 0.05, 'obstruction_kind' => 'trees']);
+
+    expect(describeFacts())->toBe('Výhled z AP Brno na S (0°) — směrem AP Brno-Sever (2,2 km). Bez překážek (rozpoznáno automaticky).');
+});
+
+it('captures the direction of a normal upload from the phone compass', function () {
+    $this->actingAs(User::factory()->admin()->create());
+
+    uploadGalleryChunks('pub', 13, 201, 'phone.jpg', jpegWithGps(49.195, 16.61, 1.0))->assertOk();
+
+    expect(GalleryImageDescription::sole())->heading->toBe(1)->heading_source->toBe('exif')
+        ->and(app(GalleryDescriptions::class)->texts('pub', 13, 201, ['phone.jpg'])['phone.jpg'])
+        ->toBe('Výhled z AP Brno na S (1°) — směrem AP Brno-Sever (2,2 km).');
+});
+
+it('shows a small map for photos with a known direction, loaded only when opened', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'x');
+    Storage::disk('local')->put('gallery/ap/13/201/pub/b.jpg', 'x');
+    factsFor(['heading' => 0, 'heading_source' => 'manual']);
+    GalleryImageDescription::factory()->create(['filename' => 'b.jpg', 'scene' => Scene::Les, 'scene_score' => 0.9]);
+    config(['services.gallery.map_tiles' => 'https://tiles.example/{z}/{x}/{y}.png']);
+
+    $page = $this->get(route('gallery.public', ['area' => 13, 'ap' => 201]))
+        ->assertSee('Zobrazit na mapě')
+        ->assertSee('https://tiles.example/14/', escape: false)
+        ->assertSee('referrerpolicy="origin"', escape: false)
+        ->assertSee('Brno-Sever →')
+        ->assertSee('OpenStreetMap')
+        ->getContent();
+
+    // Only the photo with a direction gets a map, inside a closed <details>.
+    expect(substr_count($page, 'data-map'))->toBe(1)
+        ->and(substr_count($page, '<details data-map class'))->toBe(1)
+        ->and($page)->not->toContain('<details data-map open');
+});
+
+it('forgets the facts of files that disappeared from disk when reconciling', function () {
+    GalleryImage::factory()->create(['filename' => 'gone.jpg']);
+    GalleryImageDescription::factory()->create(['filename' => 'gone.jpg', 'heading' => 90, 'heading_source' => 'manual']);
+    GalleryImageEmbedding::factory()->create(['filename' => 'gone.jpg']);
+
+    app(GalleryIndex::class)->reconcileAp('pub', 13, 201);
+
+    expect(GalleryImageDescription::count())->toBe(0)
+        ->and(GalleryImageEmbedding::count())->toBe(0);
+
+    // A new file with the same name starts clean.
+    Storage::disk('local')->put('gallery/ap/13/201/pub/gone.jpg', 'x');
+    app(GalleryIndex::class)->record('pub', 13, 201, 'gone.jpg');
+
+    expect(GalleryImageDescription::count())->toBe(0);
+});

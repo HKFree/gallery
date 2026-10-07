@@ -1,0 +1,33 @@
+{
+  "id": "22020482",
+  "type": "page",
+  "title": "Foto výhled",
+  "space": {
+    "key": "fotogalerie",
+    "name": "Fotogalerie"
+  },
+  "version": {
+    "number": 6,
+    "when": "2012-10-07T18:22:25.924+02:00"
+  },
+  "ancestors": [
+    {
+      "id": "16220169",
+      "title": "Home"
+    },
+    {
+      "id": "22020818",
+      "title": "Benesovka"
+    }
+  ],
+  "body": {
+    "storage": {
+      "value": "<ac:structured-macro ac:name=\"gallery\" ac:schema-version=\"1\" ac:macro-id=\"4a6b9185-d9c5-4898-aa76-548c9a4005f8\"><ac:parameter ac:name=\"sort\">name</ac:parameter><ac:parameter ac:name=\"title\">Vyhled z Benesovky</ac:parameter></ac:structured-macro>\n<p>Fotky jsou aktualni i v roce 2012.</p>",
+      "representation": "storage"
+    }
+  },
+  "_links": {
+    "webui": "/spaces/fotogalerie/pages/22020482/Foto+v%C3%BDhled",
+    "base": "https://confluence.hkfree.org"
+  }
+}

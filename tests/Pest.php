@@ -52,7 +52,8 @@ expect()->extend('toBeOne', function () {
  * Fake the Userdb /areas endpoint with a default (or custom) fixture.
  *
  * Default fixture: area "Slatina" (single same-named AP → collapsed) and area
- * "Brno" (two APs → group).
+ * "Brno" (two APs → group). Brno-Sever lies 2.2 km due north of Brno; Slatina 6.6 km
+ * east-south-east of it.
  *
  * @param  array<string, mixed>|null  $areas
  * @return array<string, mixed>
@@ -64,7 +65,7 @@ function fakeUserdbAreas(?array $areas = null): array
             'id' => 12,
             'jmeno' => 'Slatina',
             'aps' => [
-                '101' => ['id' => 101, 'jmeno' => 'Slatina', 'aktivni' => 1],
+                '101' => ['id' => 101, 'jmeno' => 'Slatina', 'aktivni' => 1, 'gps' => '49.175000,16.700000'],
             ],
             'admins' => [],
         ],
@@ -72,8 +73,8 @@ function fakeUserdbAreas(?array $areas = null): array
             'id' => 13,
             'jmeno' => 'Brno',
             'aps' => [
-                '201' => ['id' => 201, 'jmeno' => 'Brno', 'aktivni' => 1],
-                '202' => ['id' => 202, 'jmeno' => 'Brno-Sever', 'aktivni' => 1],
+                '201' => ['id' => 201, 'jmeno' => 'Brno', 'aktivni' => 1, 'gps' => '49.195000,16.610000'],
+                '202' => ['id' => 202, 'jmeno' => 'Brno-Sever', 'aktivni' => 1, 'gps' => '49.215000,16.610000'],
             ],
             'admins' => [],
         ],
@@ -159,6 +160,106 @@ function jpegWithExif(?string $dateTimeOriginal = null, ?string $dateTimeDigitiz
     $app1 = "Exif\0\0".$tiff.$data;
 
     $image = UploadedFile::fake()->image('exif.jpg', 8, 8);
+    $jpeg = file_get_contents($image->getRealPath());
+
+    return substr($jpeg, 0, 2)."\xFF\xE1".pack('n', strlen($app1) + 2).$app1.substr($jpeg, 2);
+}
+
+/**
+ * Fake the Confluence REST API for one page: its content (body), attachments and child pages.
+ * Defaults to the recorded page 22020482 ("Foto výhled": a gallery macro, 11 JPEGs).
+ *
+ * @param  list<array<string, mixed>>|null  $attachments  attachment API results
+ * @param  list<array{id: int, title: string}>  $children
+ */
+function fakeConfluencePage(int $id = 22020482, ?string $body = null, ?array $attachments = null, array $children = [], string $title = 'Foto výhled', array $ancestors = ['Home', 'Benesovka']): void
+{
+    $page = json_decode(file_get_contents(base_path('tests/Fixtures/confluence/page-22020482.json')), true);
+    $page['id'] = (string) $id;
+    $page['title'] = $title;
+    $page['ancestors'] = array_map(fn (string $ancestor, int $index): array => ['id' => (string) $index, 'title' => $ancestor], $ancestors, array_keys($ancestors));
+
+    if ($body !== null) {
+        $page['body']['storage']['value'] = $body;
+    }
+
+    $attachments ??= json_decode(file_get_contents(base_path('tests/Fixtures/confluence/attachments-22020482.json')), true)['results'];
+
+    Http::fake([
+        "doc.hkfree.org/rest/api/content/{$id}/child/attachment*" => Http::response(['results' => $attachments, 'size' => count($attachments)]),
+        "doc.hkfree.org/rest/api/content/{$id}/child/page*" => Http::response(['results' => array_map(fn (array $child): array => [
+            'id' => (string) $child['id'], 'title' => $child['title'], '_links' => ['webui' => "/pages/viewpage.action?pageId={$child['id']}"],
+        ], $children)]),
+        "doc.hkfree.org/rest/api/content/{$id}*" => Http::response($page),
+        'doc.hkfree.org/*' => Http::response([], 404),
+    ]);
+}
+
+/**
+ * One attachment as the Confluence API returns it.
+ *
+ * @return array<string, mixed>
+ */
+function confluenceAttachment(string $filename, string $mediaType = 'image/jpeg', int $size = 1000, string $created = '2020-01-01T10:00:00.000+01:00', int $id = 0): array
+{
+    $id = $id ?: crc32($filename);
+
+    return [
+        'id' => (string) $id,
+        'type' => 'attachment',
+        'title' => $filename,
+        'version' => ['number' => 1, 'when' => $created],
+        'metadata' => ['mediaType' => $mediaType],
+        'extensions' => ['mediaType' => $mediaType, 'fileSize' => $size],
+        '_links' => ['download' => '/download/attachments/1/'.rawurlencode($filename).'?version=1&api=v2'],
+    ];
+}
+
+/**
+ * A small JPEG with an EXIF GPS block: position and/or compass heading, as phones record them.
+ */
+function jpegWithGps(?float $lat = null, ?float $lon = null, ?float $heading = null): string
+{
+    $rational = fn (float $value): string => pack('VV', (int) round($value * 10000), 10000);
+    $dms = fn (float $value): string => $rational(floor($value))
+        .$rational(floor(($value - floor($value)) * 60))
+        .$rational(($value * 60 - floor($value * 60)) * 60);
+
+    // tag => [type (2 ASCII, 5 RATIONAL), count, value bytes]
+    $entries = [];
+
+    if ($lat !== null && $lon !== null) {
+        $entries[1] = [2, 2, $lat >= 0 ? "N\0" : "S\0"];
+        $entries[2] = [5, 3, $dms(abs($lat))];
+        $entries[3] = [2, 2, $lon >= 0 ? "E\0" : "W\0"];
+        $entries[4] = [5, 3, $dms(abs($lon))];
+    }
+
+    if ($heading !== null) {
+        $entries[16] = [2, 2, "T\0"];
+        $entries[17] = [5, 1, $rational($heading)];
+    }
+
+    $gpsOffset = 8 + 2 + 12 + 4;
+    $dataOffset = $gpsOffset + 2 + 12 * count($entries) + 4;
+    $directory = pack('v', count($entries));
+    $data = '';
+
+    foreach ($entries as $tag => [$type, $count, $value]) {
+        if (strlen($value) <= 4) {
+            $directory .= pack('vvV', $tag, $type, $count).str_pad($value, 4, "\0");
+        } else {
+            $directory .= pack('vvVV', $tag, $type, $count, $dataOffset + strlen($data));
+            $data .= $value;
+        }
+    }
+
+    $tiff = "II*\0".pack('V', 8)
+        .pack('v', 1).pack('vvVV', 0x8825, 4, 1, $gpsOffset).pack('V', 0)
+        .$directory.pack('V', 0).$data;
+    $app1 = "Exif\0\0".$tiff;
+
+    $image = UploadedFile::fake()->image('gps.jpg', 8, 8);
     $jpeg = file_get_contents($image->getRealPath());
 
     return substr($jpeg, 0, 2)."\xFF\xE1".pack('n', strlen($app1) + 2).$app1.substr($jpeg, 2);

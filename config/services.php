@@ -49,9 +49,20 @@ return [
         'password' => env('USERDB_API_PASSWORD'),
     ],
 
+    'confluence' => [
+        // The only host the Confluence import talks to; pasted URLs are parsed for a page id only.
+        'base_url' => rtrim((string) env('CONFLUENCE_BASE_URL', 'https://doc.hkfree.org'), '/'),
+        'token' => env('CONFLUENCE_TOKEN'),
+    ],
+
     'gallery' => [
         // Wall-clock timezone of timeline dates (EXIF dates carry no zone; others are converted).
         'timezone' => env('GALLERY_TIMEZONE', 'Europe/Prague'),
+        // Optional self-hosted mirror of the scene recognition model files (Hugging Face layout).
+        'scene_model_url' => env('GALLERY_SCENE_MODEL_URL'),
+        // Map tiles for the small per-photo maps; OpenStreetMap by default (use a caching proxy
+        // for heavy use, per the OSM tile usage policy).
+        'map_tiles' => env('GALLERY_MAP_TILES', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
         'admin_roles' => array_values(array_filter(
             array_map('trim', explode(',', (string) env('GALLERY_ADMIN_ROLES', 'SO,ZSO,PREDSTAVENSTVO,VV')))
         )),
