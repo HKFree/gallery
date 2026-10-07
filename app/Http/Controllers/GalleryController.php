@@ -7,6 +7,7 @@ use App\Services\UserdbService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
@@ -15,6 +16,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class GalleryController extends Controller
 {
+    /** How long (seconds) browsers may reuse an image before revalidating it with its ETag. */
+    private const IMAGE_MAX_AGE = 86400;
+
     public function __construct(
         private readonly UserdbService $userdb,
         private readonly GalleryStorage $storage,
@@ -30,24 +34,24 @@ class GalleryController extends Controller
         return $this->showGallery('priv', $area, $ap);
     }
 
-    public function publicImage(int $area, int $ap, string $filename): StreamedResponse
+    public function publicImage(Request $request, int $area, int $ap, string $filename): StreamedResponse
     {
-        return $this->streamImage('pub', $area, $ap, $filename, thumb: false);
+        return $this->streamImage($request, 'pub', $area, $ap, $filename, thumb: false);
     }
 
-    public function publicThumb(int $area, int $ap, string $filename): StreamedResponse
+    public function publicThumb(Request $request, int $area, int $ap, string $filename): StreamedResponse
     {
-        return $this->streamImage('pub', $area, $ap, $filename, thumb: true);
+        return $this->streamImage($request, 'pub', $area, $ap, $filename, thumb: true);
     }
 
-    public function privateImage(int $area, int $ap, string $filename): StreamedResponse
+    public function privateImage(Request $request, int $area, int $ap, string $filename): StreamedResponse
     {
-        return $this->streamImage('priv', $area, $ap, $filename, thumb: false);
+        return $this->streamImage($request, 'priv', $area, $ap, $filename, thumb: false);
     }
 
-    public function privateThumb(int $area, int $ap, string $filename): StreamedResponse
+    public function privateThumb(Request $request, int $area, int $ap, string $filename): StreamedResponse
     {
-        return $this->streamImage('priv', $area, $ap, $filename, thumb: true);
+        return $this->streamImage($request, 'priv', $area, $ap, $filename, thumb: true);
     }
 
     /**
@@ -152,8 +156,12 @@ class GalleryController extends Controller
 
     /**
      * Stream an image (or its thumbnail) from the private disk, 404 when missing or trashed.
+     * A missing thumbnail is generated on demand, falling back to the original image.
+     *
+     * Responses are cacheable (publicly for `pub`, browser-only for `priv`) and carry an
+     * ETag / Last-Modified pair, so revalidation answers 304 without streaming the file.
      */
-    private function streamImage(string $visibility, int $areaId, int $apId, string $filename, bool $thumb): StreamedResponse
+    private function streamImage(Request $request, string $visibility, int $areaId, int $apId, string $filename, bool $thumb): StreamedResponse
     {
         $this->resolveAp($areaId, $apId);
 
@@ -161,11 +169,25 @@ class GalleryController extends Controller
 
         abort_if($this->storage->isTrashed($filename), 404);
 
+        // Fall back to the original when a thumbnail is missing and cannot be generated.
+        $thumb = $thumb && $this->storage->ensureThumbnail($visibility, $areaId, $apId, $filename);
+
         $disk = Storage::disk('local');
         $path = $this->storage->path($visibility, $areaId, $apId, $filename, $thumb);
 
         abort_unless($disk->exists($path), 404);
 
-        return $disk->response($path);
+        $lastModified = $disk->lastModified($path);
+        $scope = $visibility === 'pub' ? 'public' : 'private';
+
+        $response = $disk->response($path, null, [
+            'Cache-Control' => "{$scope}, max-age=".self::IMAGE_MAX_AGE,
+        ]);
+
+        $response->setEtag(md5("{$path}|{$lastModified}|{$disk->size($path)}"));
+        $response->setLastModified(Carbon::createFromTimestamp($lastModified));
+        $response->isNotModified($request);
+
+        return $response;
     }
 }

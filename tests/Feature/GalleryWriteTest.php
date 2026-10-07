@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Services\GalleryStorage;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -72,6 +73,76 @@ it('rejects an assembled file that is not a valid image and stores nothing', fun
 
     Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/fake.jpg');
     expect(Storage::disk('local')->files('gallery/tmp'))->toBeEmpty();
+});
+
+it('rejects chunks that arrive out of order or are duplicated', function (array $sequence) {
+    Storage::fake('local');
+    $this->actingAs(User::factory()->admin()->create());
+
+    $uploadId = (string) Str::uuid();
+    $url = route('gallery.upload', ['visibility' => 'pub', 'area' => 13, 'ap' => 201]);
+    $post = fn (int $index) => $this->post($url, [
+        'upload_id' => $uploadId,
+        'chunk_index' => $index,
+        'total_chunks' => 3,
+        'filename' => 'delta.jpg',
+        'chunk' => UploadedFile::fake()->createWithContent('chunk', 'piece'),
+    ], ['Accept' => 'application/json']);
+
+    $rejected = array_pop($sequence);
+
+    foreach ($sequence as $index) {
+        $post($index)->assertOk()->assertJson(['status' => 'pending']);
+    }
+
+    $post($rejected)
+        ->assertStatus(422)
+        ->assertJson(['message' => 'Chunk out of order or upload session expired.']);
+})->with([
+    'skipped chunk' => [[0, 2]],
+    'duplicated chunk' => [[0, 1, 1]],
+]);
+
+it('stores an image too large to thumbnail without a thumbnail instead of crashing', function () {
+    Storage::fake('local');
+    Log::spy();
+    $this->actingAs(User::factory()->admin()->create());
+
+    // A PNG whose header claims 20000x20000 px: decoding it would need gigabytes of memory.
+    $chunk = fn (string $type, string $data): string => pack('N', strlen($data)).$type.$data.pack('N', crc32($type.$data));
+    $png = "\x89PNG\r\n\x1a\n"
+        .$chunk('IHDR', pack('NNCCCCC', 20000, 20000, 8, 6, 0, 0, 0))
+        .$chunk('IDAT', str_repeat("\0", 64))
+        .$chunk('IEND', '');
+
+    uploadGalleryChunks('pub', 13, 201, 'huge.png', $png)
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'filename' => 'huge.png']);
+
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/huge.png');
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/thumbs/huge.png');
+    expect(Storage::disk('local')->files('gallery/tmp'))->toBeEmpty();
+    Log::shouldHaveReceived('warning')->with('Gallery: image too large to generate a thumbnail', Mockery::any());
+});
+
+it('counts every frame of an animated GIF when estimating thumbnail memory', function () {
+    Storage::fake('local');
+    Log::spy();
+    $this->actingAs(User::factory()->admin()->create());
+
+    // 2000x2000 px is affordable as one frame, but not as 40 full-canvas frames.
+    $frame = "\x21\xF9\x04\x00\x00\x00\x00\x00"
+        ."\x2C".pack('vvvv', 0, 0, 1, 1)."\x00"
+        ."\x02\x02\x4C\x01\x00";
+    $gif = 'GIF89a'.pack('vv', 2000, 2000)."\x00\x00\x00".str_repeat($frame, 40).';';
+
+    uploadGalleryChunks('pub', 13, 201, 'anim.gif', $gif)
+        ->assertOk()
+        ->assertJson(['status' => 'ok', 'filename' => 'anim.gif']);
+
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/anim.gif');
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/thumbs/anim.gif');
+    Log::shouldHaveReceived('warning')->with('Gallery: image too large to generate a thumbnail', Mockery::any());
 });
 
 it('rejects a chunk larger than the per-request limit', function () {

@@ -2,7 +2,6 @@
 
 namespace App\Support;
 
-use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Contracts\User;
 
 /**
@@ -23,7 +22,6 @@ class KeycloakRoles
     public static function fromKeycloakUser(User $user): array
     {
         $raw = $user->getRaw();
-        //Log::info('Extracting Keycloak roles from user raw data', ['raw' => $raw]);
         $groups = is_array($raw) ? ($raw[self::CLAIM] ?? []) : [];
 
         return self::normalize($groups);

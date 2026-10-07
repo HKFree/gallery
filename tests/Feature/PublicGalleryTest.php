@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -34,6 +35,41 @@ it('hides manage controls from guests', function () {
     $this->get(route('gallery.public', ['area' => 13, 'ap' => 201]))
         ->assertDontSee('data-dropzone', escape: false)
         ->assertDontSee('data-delete-url', escape: false);
+});
+
+it('serves public images with cache headers and answers revalidation with 304', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'data');
+
+    $url = route('gallery.public.image', ['area' => 13, 'ap' => 201, 'filename' => 'a.jpg']);
+
+    $response = $this->get($url)->assertSuccessful();
+    $etag = $response->headers->get('ETag');
+
+    expect($response->headers->get('Cache-Control'))->toContain('public')->toContain('max-age=86400')
+        ->and($etag)->not->toBeEmpty()
+        ->and($response->headers->get('Last-Modified'))->not->toBeEmpty();
+
+    $this->get($url, ['If-None-Match' => $etag])->assertStatus(304);
+});
+
+it('generates a missing thumbnail on demand', function () {
+    $image = UploadedFile::fake()->image('a.png', 800, 600);
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.png', file_get_contents($image->getRealPath()));
+
+    $this->get(route('gallery.public.thumb', ['area' => 13, 'ap' => 201, 'filename' => 'a.png']))
+        ->assertSuccessful();
+
+    Storage::disk('local')->assertExists('gallery/ap/13/201/pub/thumbs/a.png');
+});
+
+it('falls back to the original when a thumbnail cannot be generated', function () {
+    Storage::disk('local')->put('gallery/ap/13/201/pub/a.jpg', 'not decodable');
+
+    $response = $this->get(route('gallery.public.thumb', ['area' => 13, 'ap' => 201, 'filename' => 'a.jpg']))
+        ->assertSuccessful();
+
+    expect($response->streamedContent())->toBe('not decodable');
+    Storage::disk('local')->assertMissing('gallery/ap/13/201/pub/thumbs/a.jpg');
 });
 
 it('returns 404 for an unknown AP', function () {
