@@ -55,6 +55,8 @@ function initDropzone(zone) {
             data.append('chunk_index', index);
             data.append('total_chunks', totalChunks);
             data.append('filename', file.name);
+            // Often the capture date; the server's fallback when the image has no EXIF date.
+            data.append('client_modified_at', file.lastModified);
 
             try {
                 const response = await fetch(uploadUrl, {
@@ -144,27 +146,32 @@ function initDropzone(zone) {
     });
 }
 
-function initDelete(button) {
-    button.addEventListener('click', async (e) => {
-        e.preventDefault();
-        if (!window.confirm('Přesunout obrázek do koše?')) return;
+// Delegated, so delete buttons on tiles appended later (timeline pages) work too.
+async function handleDelete(button) {
+    if (!window.confirm('Přesunout obrázek do koše?')) return;
 
-        try {
-            const response = await fetch(button.dataset.deleteUrl, {
-                method: 'DELETE',
-                headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
-            });
+    try {
+        const response = await fetch(button.dataset.deleteUrl, {
+            method: 'DELETE',
+            headers: { 'X-CSRF-TOKEN': csrfToken(), Accept: 'application/json' },
+        });
 
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-            button.closest('[data-image]')?.remove();
-        } catch (error) {
-            window.alert('Smazání se nezdařilo.');
-        }
-    });
+        button.closest('[data-image]')?.remove();
+    } catch (error) {
+        window.alert('Smazání se nezdařilo.');
+    }
 }
+
+document.addEventListener('click', (e) => {
+    const button = e.target.closest('[data-delete-url]');
+    if (!button) return;
+
+    e.preventDefault();
+    handleDelete(button);
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('[data-dropzone]').forEach(initDropzone);
-    document.querySelectorAll('[data-delete-url]').forEach(initDelete);
 });

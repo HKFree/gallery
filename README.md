@@ -9,6 +9,8 @@ right role can upload and remove photos directly in the browser.
 - **Role-based management** — uploading and deleting is restricted to configured Keycloak
   realm roles (e.g. `SO`, `ZSO`, `PREDSTAVENSTVO`, `VV`).
 - **Area / AP data** is pulled live from the HKFree Userdb API.
+- **Timeline** — photos grouped by month, per AP and across the whole network, dated by EXIF
+  where available. See the [timeline documentation](docs/timeline/README.md).
 - **Images stream through the application** from a private disk, so private documentation
   is never directly reachable; thumbnails are generated on upload, or on demand when missing.
 
@@ -34,6 +36,7 @@ The most important environment variables (see `.env.example` for the full list):
 | `USERDB_AREAS_URL` | Userdb API endpoint that lists areas and APs. |
 | `USERDB_API_USERNAME` / `USERDB_API_PASSWORD` | Credentials for the Userdb API. |
 | `GALLERY_ADMIN_ROLES` | Comma-separated Keycloak realm roles allowed to manage galleries (OR-ed), e.g. `SO,ZSO,PREDSTAVENSTVO,VV`. |
+| `GALLERY_TIMEZONE` | Timezone used to place photos in months on the timeline (default `Europe/Prague`). |
 
 ## Local development
 
@@ -137,6 +140,12 @@ GALLERY_ADMIN_ROLES=SO,ZSO,PREDSTAVENSTVO,VV
 touch database/database.sqlite
 php artisan migrate --force
 
+# Build the timeline index from the images already on disk. Check the dry run's month
+# distribution first: if most images land in one month, their file times were not
+# preserved when they were copied, and they will be dated by that copy.
+php artisan gallery:index --dry-run
+php artisan gallery:index
+
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
@@ -224,7 +233,24 @@ manually:
 </VirtualHost>
 ```
 
-### 9. Updating an existing deployment
+### 9. Scheduler (cron)
+
+The timeline index is kept in sync on upload and delete. A daily `gallery:index` run (from
+Laravel's scheduler) also picks up files changed directly on disk. Run the scheduler as
+`www-data`, so the logs and database files it creates stay writable for Apache:
+
+```bash
+sudo crontab -u www-data -e
+```
+
+```cron
+* * * * * cd /home/<user>/websites/hkfree-gallery && php artisan schedule:run >> /dev/null 2>&1
+```
+
+After copying images onto the server or restoring files from the trash by hand, run
+`sudo -u www-data php artisan gallery:index` to index them right away.
+
+### 10. Updating an existing deployment
 
 ```bash
 cd ~/websites/hkfree-gallery
@@ -236,4 +262,12 @@ npm ci && npm run build
 php artisan migrate --force
 php artisan config:cache && php artisan route:cache && php artisan view:cache
 # Re-apply group ownership if new files were created (see step 6).
+```
+
+The first update that adds the timeline index also needs the initial index build (see step 5)
+and the cron entry (step 9):
+
+```bash
+sudo -u www-data php artisan gallery:index --dry-run
+sudo -u www-data php artisan gallery:index
 ```

@@ -16,6 +16,10 @@
             </a>
 
             <nav class="flex items-center gap-3 text-sm">
+                <a href="{{ route('timeline') }}"
+                   @class(['rounded-md px-3 py-1.5 font-medium hover:bg-gray-100', 'text-gray-900' => request()->routeIs('timeline'), 'text-gray-600' => ! request()->routeIs('timeline')])>
+                    Časová osa
+                </a>
                 @auth
                     <span class="text-gray-600">{{ auth()->user()->name }}</span>
                     @can('manage-gallery')
